@@ -4,6 +4,88 @@ This repository contains a MERN-based microservices application, deployed and or
 
 ---
 
+## 🔄 Jenkins CI/CD Pipeline
+
+### Jenkins Shell Script for HelloService
+
+Complete automation script for building and pushing `helloService` to ECR:
+
+```bash
+#!/bin/bash
+
+# -----------------------------------------------
+# Step 1: Pull latest code (Jenkins already clones the repo)
+# -----------------------------------------------
+echo "📥 Pulling latest code (optional)..."
+git pull || true
+
+# -----------------------------------------------
+# Step 2: Build Docker image
+# -----------------------------------------------
+echo "🐳 Building Docker image for helloService..."
+cd SampleMERNwithMicroservices/backend/helloService || exit 1
+docker build -t hello-service .
+
+echo "✅ Docker build complete."
+
+# -----------------------------------------------
+# Step 3: Authenticate Docker to ECR (ap-south-1)
+# -----------------------------------------------
+echo "🔐 Logging in to Amazon ECR..."
+aws ecr get-login-password --region ap-south-1 | \
+docker login --username AWS --password-stdin 975050024946.dkr.ecr.ap-south-1.amazonaws.com
+
+# -----------------------------------------------
+# Step 4: Tag image for ECR
+# -----------------------------------------------
+echo "🏷️ Tagging image for ECR..."
+docker tag hello-service:latest 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:hello-service
+
+# -----------------------------------------------
+# Step 5: Push image to ECR
+# -----------------------------------------------
+echo "🚀 Pushing image to ECR..."
+docker push 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:hello-service
+
+# -----------------------------------------------
+# Step 6: Confirm pushed image
+# -----------------------------------------------
+echo "📦 Listing image in ECR:"
+aws ecr list-images \
+  --repository-name prince-reg \
+  --region ap-south-1 \
+  --query 'imageIds[?contains(imageTag, `hello-service`)]' \
+  --output table
+
+echo "✅ helloService image pushed to ECR!"
+```
+
+### Jenkins Setup Instructions
+
+1. **Jenkins Freestyle Job Configuration:**
+   - Source Code Management: Git (CodeCommit repository)
+   - Build Triggers: Poll SCM or GitHub webhooks
+   - Build Step: Execute Shell (paste the script above)
+
+2. **Required Jenkins Plugins:**
+   - AWS CLI Plugin
+   - Docker Pipeline Plugin
+   - Git Plugin
+
+3. **Jenkins Credentials Setup:**
+   - AWS credentials configured in Jenkins
+   - Docker daemon accessible to Jenkins user
+   - ECR permissions configured
+
+### Pipeline Features
+- ✅ Automated Docker image building
+- ✅ ECR authentication and push
+- ✅ Image verification after push
+- ✅ Error handling with exit codes
+- ✅ Detailed logging for debugging
+
+---
+
 ## 📦 Microservices Overview
 
 | Service Name     | Description                  | Port   |
@@ -38,6 +120,7 @@ SampleMERNwithMicroservices/
 │   └── package.json
 ├── Screenshots/
 │   ├── login-ecr.png
+│   └── Readme.md
 ├── .dockerignore
 ├── .gitignore
 └── README.md
@@ -141,17 +224,19 @@ docker push 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:frontend
 
 ## 🚀 Deployment Architecture
 
-### Current Phase: Docker + ECR ✅
+### Current Phase: Docker + ECR + Jenkins CI/CD ✅
 - [x] Microservices containerized with Docker
 - [x] Images built and tested locally
 - [x] Images pushed to Amazon ECR
 - [x] ECR repository configured with proper permissions
+- [x] Jenkins CI/CD pipeline for helloService automation
+- [x] Automated build, tag, and push workflow
 
-### Next Phase: CI/CD Pipeline
-- [ ] Push code to AWS CodeCommit
-- [ ] Configure Jenkins for automated builds
-- [ ] Set up CI/CD pipeline from CodeCommit to ECR
-- [ ] Implement automated testing in pipeline
+### Next Steps: Extend Automation
+- [ ] Create Jenkins scripts for profileService and frontend
+- [ ] Implement multi-service pipeline with parallel builds
+- [ ] Add automated testing before ECR push
+- [ ] Set up blue-green deployment strategy
 
 ### Next Phase: AWS Deployment
 - [ ] Deploy backend services with Auto Scaling Groups
@@ -257,7 +342,9 @@ docker push --disable-content-trust 975050024946.dkr.ecr.ap-south-1.amazonaws.co
 - ✅ Images built without errors
 - ✅ ECR repository configured and accessible
 - ✅ All images pushed to ECR successfully
-- ✅ Ready for next phase deployment
+- ✅ Jenkins CI/CD pipeline operational for helloService
+- ✅ Automated build-tag-push workflow established
+- 🚀 Ready for production deployment phase
 
 ---
 
