@@ -1,4 +1,5 @@
 import boto3
+import base64  # ✅ Required for base64 encoding
 
 # ----------------------------------------
 # 🔧 CONFIGURE THESE VARIABLES
@@ -42,9 +43,10 @@ response = ec2_client.create_launch_template(
         'IamInstanceProfile': {
             'Name': iam_instance_profile_name
         },
-        'UserData': user_data_script.encode('base64').decode('utf-8')
+        'UserData': base64.b64encode(user_data_script.encode('utf-8')).decode('utf-8')  # ✅ FIXED ENCODING
     }
 )
+
 launch_template_id = response['LaunchTemplate']['LaunchTemplateId']
 print(f"✅ Launch Template created: {launch_template_id}")
 
