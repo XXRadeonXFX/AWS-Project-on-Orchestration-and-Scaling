@@ -56,10 +56,24 @@ pipeline {
 
                         if (targets) {
                             env.BUILD_TARGETS = targets.join(',')
+                            echo "Auto-detected targets: ${env.BUILD_TARGETS}"
                         } else {
-                            error("No relevant app changes detected. Skipping build.")
+                            echo "No relevant app changes detected. Building all apps as fallback."
+                            env.BUILD_TARGETS = "mern-frontend,mern-backend-helloservice"
                         }
                     }
+                }
+            }
+        }
+
+        stage('Set Build Targets') {
+            when {
+                expression { return params.APP_TARGET?.trim() }
+            }
+            steps {
+                script {
+                    env.BUILD_TARGETS = params.APP_TARGET.trim()
+                    echo "Manual target selected: ${env.BUILD_TARGETS}"
                 }
             }
         }
@@ -82,26 +96,41 @@ pipeline {
         stage('Build & Push Docker Images') {
             steps {
                 script {
-                    def targets = []
-
-                    if (params.APP_TARGET?.trim()) {
-                        targets = [params.APP_TARGET.trim()]
-                    } else if (env.BUILD_TARGETS) {
-                        targets = env.BUILD_TARGETS.split(',')
-                    } else {
+                    if (!env.BUILD_TARGETS) {
                         error("No build targets available.")
                     }
 
-                    for (app in targets) {
-                        def dockerContext = app == 'mern-frontend' ? 'SampleMERNwithMicroservices/frontend' :
-                                            app == 'mern-backend-helloservice' ? 'SampleMERNwithMicroservices/backend/helloService' : null
+                    def targets = env.BUILD_TARGETS.split(',')
+                    echo "Building targets: ${targets}"
 
-                        if (!dockerContext) {
-                            error "Unknown app target: ${app}"
+                    for (app in targets) {
+                        // Map parameter names to internal names and Docker contexts
+                        def dockerContext
+                        def ecrRepoName
+                        
+                        switch(app) {
+                            case 'prince-mern-frontend':
+                                dockerContext = 'SampleMERNwithMicroservices/frontend'
+                                ecrRepoName = 'mern-frontend'
+                                break
+                            case 'prince-mern-backend-helloservice':
+                                dockerContext = 'SampleMERNwithMicroservices/backend/helloService'
+                                ecrRepoName = 'mern-backend-helloservice'
+                                break
+                            case 'mern-frontend':
+                                dockerContext = 'SampleMERNwithMicroservices/frontend'
+                                ecrRepoName = 'mern-frontend'
+                                break
+                            case 'mern-backend-helloservice':
+                                dockerContext = 'SampleMERNwithMicroservices/backend/helloService'
+                                ecrRepoName = 'mern-backend-helloservice'
+                                break
+                            default:
+                                error "Unknown app target: ${app}"
                         }
 
-                        def image = "${app}:${env.IMAGE_TAG}"
-                        def ecr_uri = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${app}"
+                        def image = "${ecrRepoName}:${env.IMAGE_TAG}"
+                        def ecr_uri = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${ecrRepoName}"
 
                         echo "Building Docker image for ${app} from context: app-code/${dockerContext}"
                         sh "docker build -t ${image} app-code/${dockerContext}"
@@ -113,6 +142,8 @@ pipeline {
                             docker push ${ecr_uri}:${env.IMAGE_TAG}
                             docker push ${ecr_uri}:latest
                         """
+                        
+                        echo "✅ Successfully built and pushed ${app} to ${ecrRepoName}"
                     }
                 }
             }
@@ -130,7 +161,7 @@ pipeline {
                   --region ${AWS_REGION} \
                   --topic-arn "${TOPIC_ARN}" \
                   --subject "✅ Jenkins ECR Deployment Success" \
-                  --message "Jenkins pushed image *${IMAGE_TAG}* to ECR at $(date)"
+                  --message "Jenkins successfully pushed image *${IMAGE_TAG}* to ECR for targets: ${BUILD_TARGETS} at $(date)"
                 '''
             }
         }
@@ -145,9 +176,13 @@ pipeline {
                   --region ${AWS_REGION} \
                   --topic-arn "${TOPIC_ARN}" \
                   --subject "❌ Jenkins ECR Deployment Failed" \
-                  --message "Jenkins build failed at $(date)"
+                  --message "Jenkins build failed for targets: ${BUILD_TARGETS} at $(date). Check logs for details."
                 '''
             }
+        }
+
+        always {
+            echo "Pipeline completed. Build targets were: ${env.BUILD_TARGETS}"
         }
     }
 }
