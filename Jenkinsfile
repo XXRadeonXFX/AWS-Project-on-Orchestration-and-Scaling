@@ -4,8 +4,8 @@ pipeline {
     parameters {
         choice(
             name: 'APP_TARGET',
-            choices: [' ', 'prince-mern-frontend', 'prince-mern-backend-helloservice'],
-            description: 'Select which app to build and push. Leave blank to auto-detect changed apps.'
+            choices: [' ', 'prince-mern-frontend', 'prince-mern-backend-helloservice', 'prince-mern-backend-profileservice', 'build-all'],
+            description: 'Select which app to build and push. Leave blank to auto-detect changed apps, or select "build-all" to build all services.'
         )
     }
 
@@ -53,13 +53,16 @@ pipeline {
                         if (changedFiles.any { it.startsWith("SampleMERNwithMicroservices/backend/helloService/") }) {
                             targets << "prince-mern-backend-helloservice"
                         }
+                        if (changedFiles.any { it.startsWith("SampleMERNwithMicroservices/backend/profileService/") }) {
+                            targets << "prince-mern-backend-profileservice"
+                        }
 
                         if (targets) {
                             env.BUILD_TARGETS = targets.join(',')
                             echo "Auto-detected targets: ${env.BUILD_TARGETS}"
                         } else {
                             echo "No relevant app changes detected. Building all apps as fallback."
-                            env.BUILD_TARGETS = "prince-mern-frontend,prince-mern-backend-helloservice"
+                            env.BUILD_TARGETS = "prince-mern-frontend,prince-mern-backend-helloservice,prince-mern-backend-profileservice"
                         }
                     }
                 }
@@ -72,8 +75,13 @@ pipeline {
             }
             steps {
                 script {
-                    env.BUILD_TARGETS = params.APP_TARGET.trim()
-                    echo "Manual target selected: ${env.BUILD_TARGETS}"
+                    if (params.APP_TARGET.trim() == 'build-all') {
+                        env.BUILD_TARGETS = "prince-mern-frontend,prince-mern-backend-helloservice,prince-mern-backend-profileservice"
+                        echo "Building all services: ${env.BUILD_TARGETS}"
+                    } else {
+                        env.BUILD_TARGETS = params.APP_TARGET.trim()
+                        echo "Manual target selected: ${env.BUILD_TARGETS}"
+                    }
                 }
             }
         }
@@ -117,6 +125,10 @@ pipeline {
                                 dockerContext = 'SampleMERNwithMicroservices/backend/helloService'
                                 imageTag = 'hello-service'
                                 break
+                            case 'prince-mern-backend-profileservice':
+                                dockerContext = 'SampleMERNwithMicroservices/backend/profileService'
+                                imageTag = 'profile-service'
+                                break
                             case 'mern-frontend':
                                 dockerContext = 'SampleMERNwithMicroservices/frontend'
                                 imageTag = 'frontend'
@@ -124,6 +136,10 @@ pipeline {
                             case 'mern-backend-helloservice':
                                 dockerContext = 'SampleMERNwithMicroservices/backend/helloService'
                                 imageTag = 'hello-service'
+                                break
+                            case 'mern-backend-profileservice':
+                                dockerContext = 'SampleMERNwithMicroservices/backend/profileService'
+                                imageTag = 'profile-service'
                                 break
                             default:
                                 error "Unknown app target: ${app}"
