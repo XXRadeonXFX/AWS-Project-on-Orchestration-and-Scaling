@@ -4,7 +4,7 @@ pipeline {
     parameters {
         choice(
             name: 'APP_TARGET',
-            choices: [' ', 'mern-frontend', 'mern-backend-helloservice'],
+            choices: [' ', 'prince-mern-frontend', 'prince-mern-backend-helloservice'],
             description: 'Select which app to build and push. Leave blank to auto-detect changed apps.'
         )
     }
