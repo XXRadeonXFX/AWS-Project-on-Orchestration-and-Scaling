@@ -70,115 +70,16 @@ Each service is independently Dockerized and uses environment variables for conf
 
 ```mermaid
 graph TD
-    %% Source Control
-    subgraph "🔧 Development"
-        A[👨‍💻 Developer<br/>Code Changes]
-        B[📝 Git Commit]
-        C[⬆️ Push to GitHub]
-    end
-    
-    %% CI/CD Pipeline
-    subgraph "🚀 CI/CD Pipeline"
-        D[🎣 Webhook Trigger]
-        E[🏗️ Jenkins Build]
-        F{🔍 Change Detection}
-        F -->|Frontend| G1[⚛️ React Build]
-        F -->|Hello Service| G2[🟢 Node.js Build]
-        F -->|Profile Service| G3[👤 Profile Service Build]
-        F -->|All Services| G4[🔨 Multi-Service Build]
-    end
-    
-    %% Containerization
-    subgraph "📦 Containerization"
-        H[🐳 Docker Build]
-        I[🔖 Tag Images]
-        J[🧪 Image Testing]
-    end
-    
-    %% Registry
-    subgraph "🏪 Container Registry"
-        K[📤 Push to ECR]
-        L[🔐 Security Scan]
-        M[✅ Image Verification]
-    end
-    
-    %% Deployment Infrastructure
-    subgraph "☁️ AWS Infrastructure"
-        N{🎯 Deployment Strategy}
-        N -->|Auto Scaling| O1[📈 ASG Deployment]
-        N -->|Kubernetes| O2[⚙️ EKS Deployment]
-        N -->|Frontend| O3[🖥️ EC2 Frontend]
-        
-        P[⚖️ Load Balancer]
-        Q[🛡️ Security Groups]
-        R[🌐 Public Access]
-    end
-    
-    %% Monitoring & Backup
-    subgraph "📊 Monitoring & Backup"
-        S[📈 CloudWatch Metrics]
-        T[🚨 Alarms & Alerts]
-        U[🗄️ Lambda Backup]
-        V[💾 S3 Storage]
-        W[📋 Dashboard]
-    end
-    
-    %% Notifications
-    subgraph "📢 Notification System"
-        X{📊 Status Check}
-        X -->|✅| Y1[🎉 Success Alert]
-        X -->|⚠️| Y2[⚠️ Warning Alert]
-        X -->|❌| Y3[🚨 Critical Alert]
-        
-        Z[📱 Multi-Channel<br/>📧 Email • 💬 Telegram • 📞 SNS]
-    end
-    
-    %% Flow Connections
-    A --> B --> C --> D
-    D --> E --> F
-    G1 --> H
-    G2 --> H
-    G3 --> H
-    G4 --> H
-    H --> I --> J --> K
-    K --> L --> M --> N
-    O1 --> P
-    O2 --> P
-    O3 --> P
-    P --> Q --> R
-    O1 --> S
-    O2 --> S
-    O3 --> S
-    S --> T --> X
-    S --> W
-    U --> V
-    Y1 --> Z
-    Y2 --> Z
-    Y3 --> Z
-    
-    %% Advanced Styling
-    classDef devStyle fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000
-    classDef cicdStyle fill:#e8f5e8,stroke:#388e3c,stroke-width:3px,color:#000
-    classDef containerStyle fill:#fff3e0,stroke:#f57c00,stroke-width:3px,color:#000
-    classDef registryStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px,color:#000
-    classDef awsStyle fill:#fce4ec,stroke:#c2185b,stroke-width:3px,color:#000
-    classDef monitorStyle fill:#e0f2f1,stroke:#00695c,stroke-width:3px,color:#000
-    classDef notifyStyle fill:#f1f8e9,stroke:#558b2f,stroke-width:3px,color:#000
-    classDef successStyle fill:#c8e6c9,stroke:#2e7d32,stroke-width:4px,color:#000
-    classDef warningStyle fill:#ffecb3,stroke:#f9a825,stroke-width:4px,color:#000
-    classDef errorStyle fill:#ffcdd2,stroke:#d32f2f,stroke-width:4px,color:#000
+    A[Developer Commit] --> B[GitHub Repository]
+    B --> C[Jenkins Triggered via Webhook]
+    C --> D[Build Docker Images]
+    D --> E[Push to Amazon ECR]
+    E --> F[Deploy to EC2/EKS]
+    F --> G[Health Checks]
+    G --> H[Success/Failure Notifications]
+    H --> I[Teams + Email Alerts]
+```
 
-    class A,B,C devStyle
-    class D,E,F,G1,G2,G3,G4 cicdStyle
-    class H,I,J containerStyle
-    class K,L,M registryStyle
-    class N,O1,O2,O3,P,Q,R awsStyle
-    class S,T,U,V,W monitorStyle
-    class X,Z notifyStyle
-    class Y1 successStyle
-    class Y2 warningStyle
-    class Y3 errorStyle
----
 
 ### Pipeline Features
 - ✅ **Automated Docker image building** for all microservices
