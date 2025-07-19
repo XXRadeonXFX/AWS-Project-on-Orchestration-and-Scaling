@@ -66,7 +66,6 @@ Each service is independently Dockerized and uses environment variables for conf
 
 ## 🔄 CI/CD Pipeline Architecture
 
-```mermaid
 ## 🔄 CI/CD Pipeline Architecture
 
 ```mermaid
@@ -179,7 +178,7 @@ graph TD
     class Y1 successStyle
     class Y2 warningStyle
     class Y3 errorStyle
-```
+---
 
 ### Pipeline Features
 - ✅ **Automated Docker image building** for all microservices
