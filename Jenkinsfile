@@ -48,10 +48,10 @@ pipeline {
 
                         def targets = []
                         if (changedFiles.any { it.startsWith("SampleMERNwithMicroservices/frontend/") }) {
-                            targets << "mern-frontend"
+                            targets << "prince-mern-frontend"
                         }
                         if (changedFiles.any { it.startsWith("SampleMERNwithMicroservices/backend/helloService/") }) {
-                            targets << "mern-backend-helloservice"
+                            targets << "prince-mern-backend-helloservice"
                         }
 
                         if (targets) {
@@ -59,7 +59,7 @@ pipeline {
                             echo "Auto-detected targets: ${env.BUILD_TARGETS}"
                         } else {
                             echo "No relevant app changes detected. Building all apps as fallback."
-                            env.BUILD_TARGETS = "mern-frontend,mern-backend-helloservice"
+                            env.BUILD_TARGETS = "prince-mern-frontend,prince-mern-backend-helloservice"
                         }
                     }
                 }
@@ -106,44 +106,44 @@ pipeline {
                     for (app in targets) {
                         // Map parameter names to internal names and Docker contexts
                         def dockerContext
-                        def ecrRepoName
+                        def imageTag
                         
                         switch(app) {
                             case 'prince-mern-frontend':
                                 dockerContext = 'SampleMERNwithMicroservices/frontend'
-                                ecrRepoName = 'mern-frontend'
+                                imageTag = 'frontend'
                                 break
                             case 'prince-mern-backend-helloservice':
                                 dockerContext = 'SampleMERNwithMicroservices/backend/helloService'
-                                ecrRepoName = 'mern-backend-helloservice'
+                                imageTag = 'hello-service'
                                 break
                             case 'mern-frontend':
                                 dockerContext = 'SampleMERNwithMicroservices/frontend'
-                                ecrRepoName = 'mern-frontend'
+                                imageTag = 'frontend'
                                 break
                             case 'mern-backend-helloservice':
                                 dockerContext = 'SampleMERNwithMicroservices/backend/helloService'
-                                ecrRepoName = 'mern-backend-helloservice'
+                                imageTag = 'hello-service'
                                 break
                             default:
                                 error "Unknown app target: ${app}"
                         }
 
-                        def image = "${ecrRepoName}:${env.IMAGE_TAG}"
-                        def ecr_uri = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${ecrRepoName}"
+                        def image = "${imageTag}:${env.IMAGE_TAG}"
+                        def ecr_uri = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/prince-reg"
 
                         echo "Building Docker image for ${app} from context: app-code/${dockerContext}"
                         sh "docker build -t ${image} app-code/${dockerContext}"
 
-                        echo "Pushing image: ${ecr_uri}:${env.IMAGE_TAG} and latest"
+                        echo "Pushing image: ${ecr_uri}:${imageTag} and latest"
                         sh """
-                            docker tag ${image} ${ecr_uri}:${env.IMAGE_TAG}
+                            docker tag ${image} ${ecr_uri}:${imageTag}
                             docker tag ${image} ${ecr_uri}:latest
-                            docker push ${ecr_uri}:${env.IMAGE_TAG}
+                            docker push ${ecr_uri}:${imageTag}
                             docker push ${ecr_uri}:latest
                         """
                         
-                        echo "✅ Successfully built and pushed ${app} to ${ecrRepoName}"
+                        echo "✅ Successfully built and pushed ${app} as ${imageTag} to prince-reg repository"
                     }
                 }
             }
