@@ -179,13 +179,13 @@ python infrastructure/create_infra.py
 
 # Deploy backend with Auto Scaling Group
 python infrastructure/deploy_backend_asg.py
+```
 ![boto-3-exec](Screenshots/boto-3-exec.png)
 
 
 ![docker-ps-backend](Screenshots/docker-ps-backend.png)
 
 
-```
 
 ### Step 3: Jenkins CI/CD Setup
 
