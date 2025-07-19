@@ -13,51 +13,36 @@ Complete automation script for building and pushing `helloService` to ECR:
 ```bash
 #!/bin/bash
 
-# -----------------------------------------------
-# Step 1: Pull latest code (Jenkins already clones the repo)
-# -----------------------------------------------
-echo "📥 Pulling latest code (optional)..."
-git pull || true
+ACCOUNT_ID=975050024946
+REGION=ap-south-1
+REPO_NAME=prince-reg
+ECR_URI="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME"
 
-# -----------------------------------------------
-# Step 2: Build Docker image
-# -----------------------------------------------
-echo "🐳 Building Docker image for helloService..."
+# Login to ECR
+aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URI
+
+# -------------------- helloService --------------------
 cd SampleMERNwithMicroservices/backend/helloService || exit 1
 docker build -t hello-service .
+docker tag hello-service:latest $ECR_URI:hello-service
+docker push $ECR_URI:hello-service
+cd - || exit
 
-echo "✅ Docker build complete."
+# -------------------- profileService --------------------
+cd SampleMERNwithMicroservices/backend/profileService || exit 1
+docker build -t profile-service .
+docker tag profile-service:latest $ECR_URI:profile-service
+docker push $ECR_URI:profile-service
+cd - || exit
 
-# -----------------------------------------------
-# Step 3: Authenticate Docker to ECR (ap-south-1)
-# -----------------------------------------------
-echo "🔐 Logging in to Amazon ECR..."
-aws ecr get-login-password --region ap-south-1 | \
-docker login --username AWS --password-stdin 975050024946.dkr.ecr.ap-south-1.amazonaws.com
+# -------------------- frontend --------------------
+cd SampleMERNwithMicroservices/frontend || exit 1
+docker build -t frontend .
+docker tag frontend:latest $ECR_URI:frontend
+docker push $ECR_URI:frontend
+cd - || exit
 
-# -----------------------------------------------
-# Step 4: Tag image for ECR
-# -----------------------------------------------
-echo "🏷️ Tagging image for ECR..."
-docker tag hello-service:latest 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:hello-service
-
-# -----------------------------------------------
-# Step 5: Push image to ECR
-# -----------------------------------------------
-echo "🚀 Pushing image to ECR..."
-docker push 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:hello-service
-
-# -----------------------------------------------
-# Step 6: Confirm pushed image
-# -----------------------------------------------
-echo "📦 Listing image in ECR:"
-aws ecr list-images \
-  --repository-name prince-reg \
-  --region ap-south-1 \
-  --query 'imageIds[?contains(imageTag, `hello-service`)]' \
-  --output table
-
-echo "✅ helloService image pushed to ECR!"
+echo "✅ All images pushed to ECR under $REPO_NAME with different tags."
 ```
 
 ### Jenkins Setup Instructions
@@ -95,7 +80,7 @@ echo "✅ helloService image pushed to ECR!"
 | `frontend`       | React-based frontend app     | 3000   |
 
 Each service is independently Dockerized and uses `.env` for configuration.
-
+![ecr-images](Screenshots/ecr-images.png)
 ---
 
 ## 📁 Directory Structure
