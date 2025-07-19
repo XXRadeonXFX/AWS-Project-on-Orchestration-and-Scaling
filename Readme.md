@@ -1,4 +1,4 @@
-# MERN Stack Deployment on AWS with Docker, Jenkins, EKS & DevOps Automation
+# AWS-Project-on-Orchestration-and-Scaling
 
 This project demonstrates how to deploy a full-stack MERN (MongoDB, Express, React, Node.js) application using AWS infrastructure, Docker containers, CI/CD with Jenkins, Kubernetes (EKS), and automation using Python Boto3 scripts. It includes infrastructure-as-code, monitoring, backup automation, and ChatOps integration.
 
