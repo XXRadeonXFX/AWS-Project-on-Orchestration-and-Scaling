@@ -12,7 +12,7 @@ region = "ap-south-1"
 lambda_function_name = "prince-mongo-backup"
 s3_backup_bucket = "prince-mongo-backups-2025"
 sns_topic_arn = "arn:aws:sns:ap-south-1:975050024946:prince-topic"
-mongo_uri = "mongodb+srv://radeonxfx:1029384756!Sound@cluster0.gdl7f.mongodb.net/SimpleMern"  # Replace with your MongoDB URI
+mongo_uri = "mongodb+srv://radeonxfx:password@cluster0.gdl7f.mongodb.net/SimpleMern"  # Replace with your MongoDB URI
 
 # Initialize AWS clients
 lambda_client = boto3.client("lambda", region_name=region)

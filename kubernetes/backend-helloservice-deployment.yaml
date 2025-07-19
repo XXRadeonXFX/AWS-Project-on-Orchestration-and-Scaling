@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-helloservice
+  namespace: mern
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend-helloservice
+  template:
+    metadata:
+      labels:
+        app: backend-helloservice
+    spec:
+      containers:
+        - name: backend-helloservice
+          image: <replace-with-your-ecr-image>
+          ports:
+            - containerPort: 5000
+          env:
+            - name: MONGO_URL
+              value: "mongodb://mongo:27017/mydb"
