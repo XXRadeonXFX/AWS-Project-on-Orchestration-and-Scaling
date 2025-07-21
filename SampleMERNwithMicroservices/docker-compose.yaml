@@ -1,0 +1,51 @@
+services:
+  # Hello Service (Backend Microservice 1)
+  hello-service:
+    build:
+      context: ./backend/helloService
+      dockerfile: Dockerfile
+    container_name: hello-service
+    restart: unless-stopped
+    env_file:
+      - ./backend/helloService/.env
+    ports:
+      - "3000:3001"
+    networks:
+      - mern-network
+
+  # Profile Service (Backend Microservice 2)
+  profile-service:
+    build:
+      context: ./backend/profileService
+      dockerfile: Dockerfile
+    container_name: profile-service
+    restart: unless-stopped
+    env_file:
+      - ./backend/profileService/.env
+    ports:
+      - "3001:3002"
+    networks:
+      - mern-network
+
+  # Frontend (React App)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mern-frontend
+    restart: unless-stopped
+    environment:
+      - REACT_APP_HELLO_API_URL=http://localhost:3001
+      - REACT_APP_PROFILE_API_URL=http://localhost:3002
+    ports:
+      - "3002:3000"
+    depends_on:
+      - hello-service
+      - profile-service
+    networks:
+      - mern-network
+
+# Networks
+networks:
+  mern-network:
+    driver: bridge
