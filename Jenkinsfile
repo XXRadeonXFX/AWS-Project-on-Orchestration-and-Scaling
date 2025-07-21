@@ -1,22 +1,32 @@
 pipeline {
     agent any
-
     parameters {
         choice(
             name: 'APP_TARGET',
-            choices: [' ', 'prince-mern-frontend', 'prince-mern-backend-helloservice', 'prince-mern-backend-profileservice', 'build-all'],
+            choices: [' ', 'frontend', 'hello-service', 'profile-service', 'build-all'],
             description: 'Select which app to build and push. Leave blank to auto-detect changed apps, or select "build-all" to build all services.'
         )
+        choice(
+            name: 'DEPLOY_TO_K8S',
+            choices: ['false', 'true'],
+            description: 'Deploy to Kubernetes after building images?'
+        )
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['development', 'staging', 'production'],
+            description: 'Target environment for deployment'
+        )
     }
-
     environment {
         AWS_REGION = 'ap-south-1'
         AWS_ACCOUNT_ID = '975050024946'
+        ECR_REPOSITORY = 'prince-reg'
         CODE_REPO = 'https://github.com/XXRadeonXFX/AWS-Project-on-Orchestration-and-Scaling.git'
         CODE_BRANCH = 'main'
         TOPIC_ARN = 'arn:aws:sns:ap-south-1:975050024946:prince-topic'
+        HELM_RELEASE_NAME = 'mern-app'
+        NAMESPACE = 'default'
     }
-
     stages {
         stage('Clone App Code') {
             steps {
@@ -24,14 +34,18 @@ pipeline {
                     git branch: "${env.CODE_BRANCH}", url: "${env.CODE_REPO}"
                     script {
                         def realCommit = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
+                        def shortCommit = realCommit.take(8)
                         echo "Cloned Commit: ${realCommit}"
+                        echo "Short Commit: ${shortCommit}"
                         env.REPO_COMMIT = realCommit
-                        env.IMAGE_TAG = realCommit
+                        env.SHORT_COMMIT = shortCommit
+                        env.IMAGE_TAG = shortCommit
+                        env.BUILD_NUMBER_TAG = "${env.BUILD_NUMBER}-${shortCommit}"
                     }
                 }
             }
         }
-
+        
         stage('Detect Changed Apps') {
             when {
                 expression { return !params.APP_TARGET?.trim() }
@@ -43,32 +57,31 @@ pipeline {
                             script: "git diff-tree --no-commit-id --name-only -r ${env.REPO_COMMIT}",
                             returnStdout: true
                         ).trim().split("\n")
-
                         echo "Changed files: ${changedFiles}"
-
                         def targets = []
+                        
                         if (changedFiles.any { it.startsWith("SampleMERNwithMicroservices/frontend/") }) {
-                            targets << "prince-mern-frontend"
+                            targets << "frontend"
                         }
                         if (changedFiles.any { it.startsWith("SampleMERNwithMicroservices/backend/helloService/") }) {
-                            targets << "prince-mern-backend-helloservice"
+                            targets << "hello-service"
                         }
                         if (changedFiles.any { it.startsWith("SampleMERNwithMicroservices/backend/profileService/") }) {
-                            targets << "prince-mern-backend-profileservice"
+                            targets << "profile-service"
                         }
-
+                        
                         if (targets) {
                             env.BUILD_TARGETS = targets.join(',')
                             echo "Auto-detected targets: ${env.BUILD_TARGETS}"
                         } else {
                             echo "No relevant app changes detected. Building all apps as fallback."
-                            env.BUILD_TARGETS = "prince-mern-frontend,prince-mern-backend-helloservice,prince-mern-backend-profileservice"
+                            env.BUILD_TARGETS = "frontend,hello-service,profile-service"
                         }
                     }
                 }
             }
         }
-
+        
         stage('Set Build Targets') {
             when {
                 expression { return params.APP_TARGET?.trim() }
@@ -76,7 +89,7 @@ pipeline {
             steps {
                 script {
                     if (params.APP_TARGET.trim() == 'build-all') {
-                        env.BUILD_TARGETS = "prince-mern-frontend,prince-mern-backend-helloservice,prince-mern-backend-profileservice"
+                        env.BUILD_TARGETS = "frontend,hello-service,profile-service"
                         echo "Building all services: ${env.BUILD_TARGETS}"
                     } else {
                         env.BUILD_TARGETS = params.APP_TARGET.trim()
@@ -85,7 +98,7 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Login to ECR') {
             steps {
                 withCredentials([[
@@ -100,104 +113,201 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Build & Push Docker Images') {
             steps {
                 script {
                     if (!env.BUILD_TARGETS) {
                         error("No build targets available.")
                     }
-
                     def targets = env.BUILD_TARGETS.split(',')
                     echo "Building targets: ${targets}"
-
+                    
                     for (app in targets) {
-                        // Map parameter names to internal names and Docker contexts
                         def dockerContext
-                        def imageTag
+                        def helmImageTag
                         
-                        switch(app) {
-                            case 'prince-mern-frontend':
+                        switch(app.trim()) {
+                            case 'frontend':
                                 dockerContext = 'SampleMERNwithMicroservices/frontend'
-                                imageTag = 'frontend'
+                                helmImageTag = 'fe-radeon'
                                 break
-                            case 'prince-mern-backend-helloservice':
+                            case 'hello-service':
                                 dockerContext = 'SampleMERNwithMicroservices/backend/helloService'
-                                imageTag = 'hello-service'
+                                helmImageTag = 'hs-radeon'
                                 break
-                            case 'prince-mern-backend-profileservice':
+                            case 'profile-service':
                                 dockerContext = 'SampleMERNwithMicroservices/backend/profileService'
-                                imageTag = 'profile-service'
-                                break
-                            case 'mern-frontend':
-                                dockerContext = 'SampleMERNwithMicroservices/frontend'
-                                imageTag = 'frontend'
-                                break
-                            case 'mern-backend-helloservice':
-                                dockerContext = 'SampleMERNwithMicroservices/backend/helloService'
-                                imageTag = 'hello-service'
-                                break
-                            case 'mern-backend-profileservice':
-                                dockerContext = 'SampleMERNwithMicroservices/backend/profileService'
-                                imageTag = 'profile-service'
+                                helmImageTag = 'ps-radeon'
                                 break
                             default:
                                 error "Unknown app target: ${app}"
                         }
-
-                        def image = "${imageTag}:${env.IMAGE_TAG}"
-                        def ecr_uri = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/prince-reg"
-
-                        echo "Building Docker image for ${app} from context: app-code/${dockerContext}"
-                        sh "docker build -t ${image} app-code/${dockerContext}"
-
-                        echo "Pushing image: ${ecr_uri}:${imageTag} and latest"
+                        
+                        def ecr_uri = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPOSITORY}"
+                        def buildTag = "${env.BUILD_NUMBER_TAG}"
+                        
+                        echo "🔨 Building Docker image for ${app} from context: app-code/${dockerContext}"
+                        
+                        // Build the image
+                        sh "docker build -t ${app}:${buildTag} app-code/${dockerContext}"
+                        
+                        // Tag for ECR with multiple tags
+                        echo "🏷️  Tagging image for ECR..."
                         sh """
-                            docker tag ${image} ${ecr_uri}:${imageTag}
-                            docker tag ${image} ${ecr_uri}:latest
-                            docker push ${ecr_uri}:${imageTag}
-                            docker push ${ecr_uri}:latest
+                            docker tag ${app}:${buildTag} ${ecr_uri}:${helmImageTag}
+                            docker tag ${app}:${buildTag} ${ecr_uri}:${app}-latest
+                            docker tag ${app}:${buildTag} ${ecr_uri}:${app}-${env.SHORT_COMMIT}
+                            docker tag ${app}:${buildTag} ${ecr_uri}:${app}-build-${env.BUILD_NUMBER}
                         """
                         
-                        echo "✅ Successfully built and pushed ${app} as ${imageTag} to prince-reg repository"
+                        // Push all tags
+                        echo "🚀 Pushing images to ECR..."
+                        sh """
+                            docker push ${ecr_uri}:${helmImageTag}
+                            docker push ${ecr_uri}:${app}-latest
+                            docker push ${ecr_uri}:${app}-${env.SHORT_COMMIT}
+                            docker push ${ecr_uri}:${app}-build-${env.BUILD_NUMBER}
+                        """
+                        
+                        echo "✅ Successfully built and pushed ${app} to ${env.ECR_REPOSITORY} repository"
+                        echo "   - Helm tag: ${helmImageTag}"
+                        echo "   - Latest tag: ${app}-latest"
+                        echo "   - Commit tag: ${app}-${env.SHORT_COMMIT}"
+                        echo "   - Build tag: ${app}-build-${env.BUILD_NUMBER}"
                     }
                 }
             }
         }
+        
+        stage('Deploy to Kubernetes') {
+            when {
+                expression { return params.DEPLOY_TO_K8S == 'true' }
+            }
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'PRINCE-AWS-CRED'
+                ]]) {
+                    script {
+                        echo "🚀 Deploying to Kubernetes environment: ${params.ENVIRONMENT}"
+                        
+                        // Update kubeconfig for EKS
+                        sh """
+                            aws eks update-kubeconfig --region ${env.AWS_REGION} --name your-cluster-name
+                        """
+                        
+                        // Deploy using Helm
+                        dir('app-code/SampleMERNwithMicroservices') {
+                            sh """
+                                # Set MongoDB connection string (you'll need to add this as a Jenkins secret)
+                                MONGO_URI=\$(aws secretsmanager get-secret-value --region ${env.AWS_REGION} --secret-id mongodb-connection-string --query SecretString --output text || echo "")
+                                
+                                # Deploy with Helm
+                                helm upgrade --install ${env.HELM_RELEASE_NAME} ./mern-microservices \\
+                                    --namespace ${env.NAMESPACE} \\
+                                    --create-namespace \\
+                                    --set mongodb.connectionString="\$MONGO_URI" \\
+                                    --set helloService.fullnameOverride="hello-service" \\
+                                    --set profileService.fullnameOverride="profile-service" \\
+                                    --set frontend.fullnameOverride="frontend" \\
+                                    --set global.pullPolicy=Always \\
+                                    --wait \\
+                                    --timeout=10m
+                            """
+                        }
+                        
+                        // Verify deployment
+                        sh """
+                            echo "📊 Deployment Status:"
+                            kubectl get pods -n ${env.NAMESPACE} -l app.kubernetes.io/instance=${env.HELM_RELEASE_NAME}
+                            kubectl get services -n ${env.NAMESPACE} -l app.kubernetes.io/instance=${env.HELM_RELEASE_NAME}
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Run Health Checks') {
+            when {
+                expression { return params.DEPLOY_TO_K8S == 'true' }
+            }
+            steps {
+                script {
+                    echo "🏥 Running health checks..."
+                    sh """
+                        # Wait for pods to be ready
+                        kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=${env.HELM_RELEASE_NAME} -n ${env.NAMESPACE} --timeout=300s
+                        
+                        # Check service endpoints
+                        kubectl get endpoints -n ${env.NAMESPACE} -l app.kubernetes.io/instance=${env.HELM_RELEASE_NAME}
+                    """
+                }
+            }
+        }
     }
-
+    
     post {
         success {
             withCredentials([[
                 $class: 'AmazonWebServicesCredentialsBinding',
                 credentialsId: 'PRINCE-AWS-CRED'
             ]]) {
-                sh '''
-                aws sns publish \
-                  --region ${AWS_REGION} \
-                  --topic-arn "${TOPIC_ARN}" \
-                  --subject "✅ Jenkins ECR Deployment Success" \
-                  --message "Jenkins successfully pushed image *${IMAGE_TAG}* to ECR for targets: ${BUILD_TARGETS} at $(date)"
-                '''
+                script {
+                    def deploymentStatus = params.DEPLOY_TO_K8S == 'true' ? "and deployed to ${params.ENVIRONMENT}" : "only"
+                    sh """
+                        aws sns publish \\
+                          --region ${env.AWS_REGION} \\
+                          --topic-arn "${env.TOPIC_ARN}" \\
+                          --subject "✅ Jenkins Pipeline Success - Build ${env.BUILD_NUMBER}" \\
+                          --message "Jenkins successfully built ${deploymentStatus} the following services: ${env.BUILD_TARGETS}
+                        
+📦 Build Details:
+• Build Number: ${env.BUILD_NUMBER}
+• Commit: ${env.SHORT_COMMIT}
+• Environment: ${params.ENVIRONMENT}
+• Targets: ${env.BUILD_TARGETS}
+• ECR Repository: ${env.ECR_REPOSITORY}
+• Timestamp: \$(date)
+
+🔗 Images pushed with tags:
+• Helm tags: fe-radeon, hs-radeon, ps-radeon
+• Latest tags: *-latest
+• Commit tags: *-${env.SHORT_COMMIT}
+• Build tags: *-build-${env.BUILD_NUMBER}"
+                    """
+                }
             }
         }
-
         failure {
             withCredentials([[
                 $class: 'AmazonWebServicesCredentialsBinding',
                 credentialsId: 'PRINCE-AWS-CRED'
             ]]) {
-                sh '''
-                aws sns publish \
-                  --region ${AWS_REGION} \
-                  --topic-arn "${TOPIC_ARN}" \
-                  --subject "❌ Jenkins ECR Deployment Failed" \
-                  --message "Jenkins build failed for targets: ${BUILD_TARGETS} at $(date). Check logs for details."
-                '''
+                sh """
+                    aws sns publish \\
+                      --region ${env.AWS_REGION} \\
+                      --topic-arn "${env.TOPIC_ARN}" \\
+                      --subject "❌ Jenkins Pipeline Failed - Build ${env.BUILD_NUMBER}" \\
+                      --message "Jenkins build failed for targets: ${env.BUILD_TARGETS}
+                    
+🚨 Failure Details:
+• Build Number: ${env.BUILD_NUMBER}
+• Commit: ${env.SHORT_COMMIT}
+• Environment: ${params.ENVIRONMENT}
+• Failed Stage: Check Jenkins logs
+• Timestamp: \$(date)
+
+Please check the Jenkins console output for detailed error information."
+                """
             }
         }
-
         always {
+            echo "🧹 Cleaning up Docker images..."
+            sh """
+                # Clean up local Docker images to save space
+                docker system prune -f || true
+            """
             echo "Pipeline completed. Build targets were: ${env.BUILD_TARGETS}"
         }
     }
