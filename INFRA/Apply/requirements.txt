@@ -1,0 +1,15 @@
+# AWS SDK and Infrastructure as Code Dependencies
+boto3>=1.26.0
+botocore>=1.29.0
+
+# MongoDB backup dependencies (for Lambda)
+pymongo>=4.3.3
+dnspython>=2.3.0
+
+# Utility libraries
+requests>=2.28.0
+python-dotenv>=1.0.0
+
+# Development and testing
+pytest>=7.2.0
+moto>=4.1.0  # For AWS mocking in tests

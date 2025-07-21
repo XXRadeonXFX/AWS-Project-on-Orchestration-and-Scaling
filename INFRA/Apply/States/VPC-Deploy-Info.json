@@ -1,0 +1,23 @@
+{
+  "vpc_id": "vpc-03cd51ec43e239928",
+  "public_subnets": [
+    "subnet-06a0df1c8e639ed37",
+    "subnet-0f861fa46364e8803"
+  ],
+  "private_subnets": [
+    "subnet-037d1fd65994ebdff",
+    "subnet-08721df5a2f74d6e4"
+  ],
+  "internet_gateway_id": "igw-025c533e789dbb91a",
+  "nat_gateway_id": "nat-0734ebc2e8ba33cc2",
+  "region": "ap-south-1",
+  "security_groups": {
+    "MERN-ALB-SG": "sg-01db5d7933c41e6c8",
+    "MERN-Frontend-SG": "sg-03c0130eb90cdf562",
+    "MERN-Backend-SG": "sg-0df69b5caabf627be"
+  },
+  "route_tables": {
+    "public": "rtb-01c1d25d687e4382d",
+    "private": "rtb-0d7d279b012fcbe9d"
+  }
+}
