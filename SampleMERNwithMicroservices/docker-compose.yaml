@@ -1,51 +1,31 @@
 services:
-  # Hello Service (Backend Microservice 1)
   hello-service:
+    image: 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:hs-radeon
     build:
       context: ./backend/helloService
       dockerfile: Dockerfile
-    container_name: hello-service
-    restart: unless-stopped
-    env_file:
-      - ./backend/helloService/.env
     ports:
       - "3000:3001"
-    networks:
-      - mern-network
+    env_file:
+      - ./backend/helloService/.env
 
-  # Profile Service (Backend Microservice 2)
   profile-service:
+    image: 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:ps-radeon
     build:
       context: ./backend/profileService
       dockerfile: Dockerfile
-    container_name: profile-service
-    restart: unless-stopped
-    env_file:
-      - ./backend/profileService/.env
     ports:
       - "3001:3002"
-    networks:
-      - mern-network
+    env_file:
+      - ./backend/profileService/.env
 
-  # Frontend (React App)
   frontend:
+    image: 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:fe-radeon
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: mern-frontend
-    restart: unless-stopped
+    ports:
+      - "3002:3000"
     environment:
       - REACT_APP_HELLO_API_URL=http://localhost:3001
       - REACT_APP_PROFILE_API_URL=http://localhost:3002
-    ports:
-      - "3002:3000"
-    depends_on:
-      - hello-service
-      - profile-service
-    networks:
-      - mern-network
-
-# Networks
-networks:
-  mern-network:
-    driver: bridge
