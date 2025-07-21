@@ -1,0 +1,13 @@
+#Create Cluster
+eksctl create cluster --name demo-eks-prince --region ap-south-1 --nodegroup-name node-workers --node-type t3.medium --nodes 2 --nodes-min 2 --nodes-max 2
+
+#Update kubeconfig to use the new cluster
+aws eks --region ap-south-1 update-kubeconfig --name demo-eks-prince
+
+#Delte Cluster
+eksctl delete cluster --name demo-eks-prince --region ap-south-1 
+
+#Deploy Application
+helm upgrade mern-app ./mern-microservices --set mongodb.connectionString="YOUR MONGO URI/Database" --set helloService.fullnameOverride="hello-service" --set profileService.fullnameOverride="profile-service" --set frontend.fullnameOverride="frontend"
+helm install mern-app ./mern-microservices --set mongodb.connectionString="YOUR MONGO URI/Database" --set helloService.fullnameOverride="hello-service" --set profileService.fullnameOverride="profile-service" --set frontend.fullnameOverride="frontend"  
+helm uninstall mern-app
