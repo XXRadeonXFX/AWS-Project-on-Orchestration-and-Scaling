@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 1  # Reduce replicas to save memory while debugging
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:fe-radeon
+        ports:
+        - containerPort: 3000
+        env:
+        - name: REACT_APP_HELLO_API_URL
+          value: "http://hello-service:3001"
+        - name: REACT_APP_PROFILE_API_URL
+          value: "http://profile-service:3002"
+        - name: NODE_OPTIONS
+          value: "--max-old-space-size=1024"  # Limit Node.js memory usage
+        resources:
+          requests:
+            memory: "512Mi"   # Increased from 128Mi
+            cpu: "100m"
+          limits:
+            memory: "1Gi"     # Increased from 256Mi to 1GB
+            cpu: "500m"       # Increased CPU limit
+        # Remove health checks temporarily until the app is stable
+        # livenessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: 3000
+        #   initialDelaySeconds: 60
+        #   periodSeconds: 30
+        #   timeoutSeconds: 10
+        # readinessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: 3000
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        #   timeoutSeconds: 5
+        #   timeoutSeconds: 5
