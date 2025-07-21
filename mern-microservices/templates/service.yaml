@@ -1,0 +1,98 @@
+# File: templates/service.yaml
+# Kubernetes Service templates for all services
+
+{{/*
+Hello Service
+*/}}
+{{- if .Values.helloService.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mern-microservices.helloService.fullname" . }}
+  labels:
+    {{- include "mern-microservices.helloService.labels" . | nindent 4 }}
+  {{- with (merge .Values.helloService.service.annotations .Values.commonAnnotations) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.helloService.service.type }}
+  ports:
+    - port: {{ .Values.helloService.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+      {{- if and (eq .Values.helloService.service.type "NodePort") .Values.helloService.service.nodePort }}
+      nodePort: {{ .Values.helloService.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "mern-microservices.helloService.selectorLabels" . | nindent 4 }}
+{{- end }}
+
+{{/*
+Profile Service
+*/}}
+{{- if .Values.profileService.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mern-microservices.profileService.fullname" . }}
+  labels:
+    {{- include "mern-microservices.profileService.labels" . | nindent 4 }}
+  {{- with (merge .Values.profileService.service.annotations .Values.commonAnnotations) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.profileService.service.type }}
+  ports:
+    - port: {{ .Values.profileService.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+      {{- if and (eq .Values.profileService.service.type "NodePort") .Values.profileService.service.nodePort }}
+      nodePort: {{ .Values.profileService.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "mern-microservices.profileService.selectorLabels" . | nindent 4 }}
+{{- end }}
+
+{{/*
+Frontend Service
+*/}}
+{{- if .Values.frontend.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mern-microservices.frontend.fullname" . }}
+  labels:
+    {{- include "mern-microservices.frontend.labels" . | nindent 4 }}
+  {{- with (merge .Values.frontend.service.annotations .Values.commonAnnotations) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.frontend.service.type }}
+  ports:
+    - port: {{ .Values.frontend.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+      {{- if and (eq .Values.frontend.service.type "NodePort") .Values.frontend.service.nodePort }}
+      nodePort: {{ .Values.frontend.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "mern-microservices.frontend.selectorLabels" . | nindent 4 }}
+  {{- if eq .Values.frontend.service.type "LoadBalancer" }}
+  {{- with .Values.frontend.service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- with .Values.frontend.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+{{- end }}

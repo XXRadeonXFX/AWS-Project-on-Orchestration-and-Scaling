@@ -1,0 +1,47 @@
+# File: Chart.yaml
+# This file contains metadata about your chart
+
+apiVersion: v2                    # Helm API version (v2 for Helm 3)
+name: mern-microservices         # Chart name
+description: |                   # Multi-line description
+  A complete MERN stack microservices application with:
+  - Hello Service (Node.js/Express API)
+  - Profile Service (Node.js/Express with MongoDB)  
+  - Frontend (React application)
+  
+type: application               # Chart type: application or library
+version: 0.1.0                 # Chart version (SemVer)
+appVersion: "1.0.0"            # Version of the application being deployed
+
+# Optional metadata
+home: https://github.com/XXRadeonXFX/mern-microservices
+sources:
+  - https://github.com/XXRadeonXFX/mern-microservices
+  
+keywords:
+  - mern
+  - microservices
+  - nodejs
+  - react
+  - mongodb
+  - express
+  - javascript
+  
+maintainers:
+  - name: Prince
+    email: prince.beats01@gmail.com
+    url: https://github.com/XXRadeonXFX
+
+# Chart annotations
+annotations:
+  category: Application
+  licenses: MIT
+  
+# Dependencies (none for this example)
+dependencies: []
+
+# Remove kubeVersion constraint to support all versions
+# kubeVersion: ">=1.19.0"
+
+# Deprecated flag (set to true if deprecating)
+deprecated: false

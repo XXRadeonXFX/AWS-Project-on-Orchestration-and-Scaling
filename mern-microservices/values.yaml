@@ -1,0 +1,287 @@
+# File: values.yaml
+# Default values for mern-microservices chart
+# This is a YAML-formatted file with default configuration values
+
+# ============================================================================
+# GLOBAL SETTINGS
+# ============================================================================
+global:
+  # Container registry settings
+  registry: 975050024946.dkr.ecr.ap-south-1.amazonaws.com
+  repository: prince-reg
+  pullPolicy: Always
+  
+  # Image pull secrets (if registry requires authentication)
+  imagePullSecrets: []
+  # imagePullSecrets:
+  #   - name: ecr-secret
+  
+  # Global labels applied to all resources
+  labels: {}
+  
+  # Global annotations applied to all resources  
+  annotations: {}
+
+# ============================================================================
+# HELLO SERVICE CONFIGURATION
+# ============================================================================
+helloService:
+  # Enable/disable this service
+  enabled: true
+  
+  # Service naming
+  name: hello-service
+  fullnameOverride: "hello-service"  # This will make service name: hello-service
+  
+  # Deployment settings
+  replicaCount: 2
+  
+  # Container image
+  image:
+    tag: hs-radeon
+    pullPolicy: ""  # Uses global.pullPolicy if empty
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3001
+    targetPort: 3001
+    annotations: {}
+    
+  # Resource limits and requests
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+      
+  # Environment variables
+  env:
+    PORT: "3001"
+    NODE_ENV: "production"
+    
+  # Health checks
+  healthCheck:
+    enabled: true
+    path: "/health"
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    
+  # Pod settings
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+  
+  # Node selection
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ============================================================================
+# PROFILE SERVICE CONFIGURATION  
+# ============================================================================
+profileService:
+  enabled: true
+  name: profile-service
+  fullnameOverride: "profile-service"  # This will make service name: profile-service
+  
+  replicaCount: 2
+  
+  image:
+    tag: ps-radeon
+    pullPolicy: ""
+    
+  service:
+    type: ClusterIP
+    port: 3002
+    targetPort: 3002
+    annotations: {}
+    
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+      
+  env:
+    PORT: "3002"
+    NODE_ENV: "production"
+    
+  healthCheck:
+    enabled: true
+    path: "/health"
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ============================================================================
+# FRONTEND CONFIGURATION
+# ============================================================================
+frontend:
+  enabled: true
+  name: frontend
+  fullnameOverride: "frontend"  # This will make service name: frontend
+  
+  replicaCount: 1  # Start with 1 to avoid OOM issues
+  
+  image:
+    tag: fe-radeon
+    pullPolicy: ""
+    
+  service:
+    type: LoadBalancer  # Expose externally
+    port: 80
+    targetPort: 3000   # React dev server port
+    annotations: {}
+    
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi      # Increased for React dev server
+    requests:
+      cpu: 100m
+      memory: 512Mi
+      
+  env:
+    # Frontend environment variables
+    REACT_APP_HELLO_API_URL: "http://hello-service:3001"
+    REACT_APP_PROFILE_API_URL: "http://profile-service:3002"
+    NODE_OPTIONS: "--max-old-space-size=1024"
+    
+  healthCheck:
+    enabled: false     # Disabled due to potential OOM issues
+    path: "/"
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 5
+    
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ============================================================================
+# MONGODB CONFIGURATION
+# ============================================================================
+mongodb:
+  # Connection string (set at runtime)
+  connectionString: ""
+  
+  # Secret management
+  secretName: mongodb-secret
+  createSecret: true      # Set to false if managing secret externally
+  
+  # Alternative: component-based configuration
+  # host: "cluster0.mongodb.net"
+  # port: 27017
+  # database: "mern_microservices"
+  # username: ""
+  # password: ""
+
+# ============================================================================
+# INGRESS CONFIGURATION (Optional)
+# ============================================================================
+ingress:
+  enabled: false
+  className: ""           # Ingress class (nginx, traefik, etc.)
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    
+  hosts:
+    - host: mern-app.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+          
+  tls: []
+    # - secretName: mern-app-tls
+    #   hosts:
+    #     - mern-app.local
+
+# ============================================================================
+# SERVICE ACCOUNT
+# ============================================================================
+serviceAccount:
+  # Create a service account
+  create: true
+  
+  # Annotations for service account (useful for IRSA)
+  annotations: {}
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/ROLE_NAME
+    
+  # Service account name (auto-generated if empty)
+  name: ""
+
+# ============================================================================
+# POD SECURITY
+# ============================================================================
+podSecurityContext:
+  # fsGroup: 2000
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+securityContext:
+  # allowPrivilegeEscalation: false
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+  # capabilities:
+  #   drop:
+  #   - ALL
+
+# ============================================================================
+# NODE SELECTION AND SCHEDULING
+# ============================================================================
+nodeSelector: {}
+  # kubernetes.io/os: linux
+  # node-type: application
+
+tolerations: []
+  # - key: "key"
+  #   operator: "Equal"
+  #   value: "value"
+  #   effect: "NoSchedule"
+
+affinity: {}
+  # podAntiAffinity:
+  #   requiredDuringSchedulingIgnoredDuringExecution:
+  #   - labelSelector:
+  #       matchExpressions:
+  #       - key: app.kubernetes.io/name
+  #         operator: In
+  #         values:
+  #         - mern-microservices
+  #     topologyKey: "kubernetes.io/hostname"
+
+# ============================================================================
+# ADDITIONAL CONFIGURATION
+# ============================================================================
+# Name overrides
+nameOverride: "mern"  # This affects all resource names
+fullnameOverride: "mern"  # This completely overrides the naming pattern
+
+# Additional labels for all resources
+commonLabels: {}
+
+# Additional annotations for all resources
+commonAnnotations: {}
