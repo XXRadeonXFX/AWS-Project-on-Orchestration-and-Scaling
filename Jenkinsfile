@@ -1,5 +1,6 @@
 pipeline {
     agent any
+    
     parameters {
         choice(
             name: 'APP_TARGET',
@@ -17,6 +18,7 @@ pipeline {
             description: 'Target environment for deployment'
         )
     }
+    
     environment {
         AWS_REGION = 'ap-south-1'
         AWS_ACCOUNT_ID = '975050024946'
@@ -26,7 +28,10 @@ pipeline {
         TOPIC_ARN = 'arn:aws:sns:ap-south-1:975050024946:prince-topic'
         HELM_RELEASE_NAME = 'mern-app'
         NAMESPACE = 'default'
+        EKS_CLUSTER_NAME = 'your-actual-cluster-name' // REPLACE WITH YOUR ACTUAL EKS CLUSTER NAME
+        MONGO_CONNECTION_STRING = 'mongodb+srv://radeonxfx:1029384756!Sound@cluster0.gdl7f.mongodb.net/SimpleMern'
     }
+    
     stages {
         stage('Clone App Code') {
             steps {
@@ -107,7 +112,7 @@ pipeline {
                 ]]) {
                     sh """
                         echo 'Logging into AWS ECR...'
-                        aws ecr get-login-password --region ${env.AWS_REGION} | \
+                        aws ecr get-login-password --region ${env.AWS_REGION} | \\
                         docker login --username AWS --password-stdin ${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com
                     """
                 }
@@ -152,29 +157,23 @@ pipeline {
                         // Build the image
                         sh "docker build -t ${app}:${buildTag} app-code/${dockerContext}"
                         
-                        // Tag for ECR with multiple tags
+                        // Tag for ECR (SIMPLIFIED - only 2 tags instead of 4)
                         echo "🏷️  Tagging image for ECR..."
                         sh """
                             docker tag ${app}:${buildTag} ${ecr_uri}:${helmImageTag}
-                            docker tag ${app}:${buildTag} ${ecr_uri}:${app}-latest
-                            docker tag ${app}:${buildTag} ${ecr_uri}:${app}-${env.SHORT_COMMIT}
-                            docker tag ${app}:${buildTag} ${ecr_uri}:${app}-build-${env.BUILD_NUMBER}
+                            docker tag ${app}:${buildTag} ${ecr_uri}:latest
                         """
                         
-                        // Push all tags
+                        // Push to ECR (SIMPLIFIED - only 2 pushes instead of 4)
                         echo "🚀 Pushing images to ECR..."
                         sh """
                             docker push ${ecr_uri}:${helmImageTag}
-                            docker push ${ecr_uri}:${app}-latest
-                            docker push ${ecr_uri}:${app}-${env.SHORT_COMMIT}
-                            docker push ${ecr_uri}:${app}-build-${env.BUILD_NUMBER}
+                            docker push ${ecr_uri}:latest
                         """
                         
                         echo "✅ Successfully built and pushed ${app} to ${env.ECR_REPOSITORY} repository"
                         echo "   - Helm tag: ${helmImageTag}"
-                        echo "   - Latest tag: ${app}-latest"
-                        echo "   - Commit tag: ${app}-${env.SHORT_COMMIT}"
-                        echo "   - Build tag: ${app}-build-${env.BUILD_NUMBER}"
+                        echo "   - Latest tag: latest"
                     }
                 }
             }
@@ -194,20 +193,17 @@ pipeline {
                         
                         // Update kubeconfig for EKS
                         sh """
-                            aws eks update-kubeconfig --region ${env.AWS_REGION} --name your-cluster-name
+                            aws eks update-kubeconfig --region ${env.AWS_REGION} --name ${env.EKS_CLUSTER_NAME}
                         """
                         
                         // Deploy using Helm
                         dir('app-code/SampleMERNwithMicroservices') {
                             sh """
-                                # Set MongoDB connection string (you'll need to add this as a Jenkins secret)
-                                MONGO_URI=\$(aws secretsmanager get-secret-value --region ${env.AWS_REGION} --secret-id mongodb-connection-string --query SecretString --output text || echo "")
-                                
-                                # Deploy with Helm
+                                # Deploy with Helm using environment variable
                                 helm upgrade --install ${env.HELM_RELEASE_NAME} ./mern-microservices \\
                                     --namespace ${env.NAMESPACE} \\
                                     --create-namespace \\
-                                    --set mongodb.connectionString="\$MONGO_URI" \\
+                                    --set mongodb.connectionString="${env.MONGO_CONNECTION_STRING}" \\
                                     --set helloService.fullnameOverride="hello-service" \\
                                     --set profileService.fullnameOverride="profile-service" \\
                                     --set frontend.fullnameOverride="frontend" \\
@@ -221,6 +217,7 @@ pipeline {
                         sh """
                             echo "📊 Deployment Status:"
                             kubectl get pods -n ${env.NAMESPACE} -l app.kubernetes.io/instance=${env.HELM_RELEASE_NAME}
+                            echo ""
                             kubectl get services -n ${env.NAMESPACE} -l app.kubernetes.io/instance=${env.HELM_RELEASE_NAME}
                         """
                     }
@@ -241,6 +238,11 @@ pipeline {
                         
                         # Check service endpoints
                         kubectl get endpoints -n ${env.NAMESPACE} -l app.kubernetes.io/instance=${env.HELM_RELEASE_NAME}
+                        
+                        # Get external access information
+                        echo ""
+                        echo "🌐 External Access Information:"
+                        kubectl get service frontend -n ${env.NAMESPACE} -o wide || echo "Frontend service not found"
                     """
                 }
             }
@@ -272,9 +274,9 @@ pipeline {
 
 🔗 Images pushed with tags:
 • Helm tags: fe-radeon, hs-radeon, ps-radeon
-• Latest tags: *-latest
-• Commit tags: *-${env.SHORT_COMMIT}
-• Build tags: *-build-${env.BUILD_NUMBER}"
+• Latest tag: latest (shared)
+
+🚀 Deployment Status: ${params.DEPLOY_TO_K8S == 'true' ? 'Deployed to Kubernetes' : 'Build only - no deployment'}"
                     """
                 }
             }
