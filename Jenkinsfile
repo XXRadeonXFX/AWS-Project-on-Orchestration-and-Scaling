@@ -28,7 +28,7 @@ pipeline {
         TOPIC_ARN = 'arn:aws:sns:ap-south-1:975050024946:prince-topic'
         HELM_RELEASE_NAME = 'mern-app'
         NAMESPACE = 'default'
-        EKS_CLUSTER_NAME = 'your-actual-cluster-name' // REPLACE WITH YOUR ACTUAL EKS CLUSTER NAME
+        EKS_CLUSTER_NAME = 'prince-ec2'
         MONGO_CONNECTION_STRING = 'mongodb+srv://radeonxfx:1029384756!Sound@cluster0.gdl7f.mongodb.net/SimpleMern'
     }
     
