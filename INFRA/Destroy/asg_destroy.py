@@ -422,7 +422,7 @@ def main():
     
     parser = argparse.ArgumentParser(description='Destroy Specific Backend Infrastructure')
     parser.add_argument('--region', default='ap-south-1', help='AWS region (default: ap-south-1)')
-    parser.add_argument('--backend-file', default='../Apply/States/Backend-Deploy-Info.json',
+    parser.add_argument('--backend-file', default='../Apply/States/Ubuntu-Backend-Deploy-Info.json',
                        help='Backend deployment info JSON file')
     parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
     
