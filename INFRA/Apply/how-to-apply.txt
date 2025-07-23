@@ -1,2 +1,12 @@
+NEW-VPC:
+----------------------------------------
 step-1: Run vpc_infrustructure.py
 step-2: Run asg_deployment.py
+----------------------------------------
+
+
+PRE-DEPLOYED-VPC
+----------------------------------------
+step-1: Run asg_deployment.py
+----------------------------------------
+
