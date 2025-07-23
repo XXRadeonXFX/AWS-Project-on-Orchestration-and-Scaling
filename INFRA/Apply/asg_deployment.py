@@ -495,6 +495,31 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+  
+  frontend:
+    image: 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:fe-radeon
+    container_name: mern-frontend-service
+    ports:
+      - "80:3000"
+    environment:
+      - REACT_APP_HELLO_API_URL=http://${HOSTNAME}/api/hello
+      - REACT_APP_PROFILE_API_URL=http://${HOSTNAME}/api/profile
+      - NODE_ENV=production
+    restart: unless-stopped
+    depends_on:
+      - hello-service
+      - profile-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 EOF
 
 # Set proper ownership
@@ -508,7 +533,8 @@ PULL_SUCCESS=false
 for i in {1..3}; do
     echo "🔄 Pull attempt $i..."
     if sudo docker pull 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:hs-radeon && \\
-       sudo docker pull 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:ps-radeon; then
+       sudo docker pull 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:ps-radeon && \\
+       sudo docker pull 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:fe-radeon; then
         echo "✅ Docker images pulled successfully"
         PULL_SUCCESS=true
         break
@@ -672,7 +698,15 @@ fi
 echo "  Profile Service (3002): $PROFILE_STATUS"
 echo "    Response: $PROFILE_RESPONSE"
 
-echo -e "\\n🔧 Network Ports:"
+# Frontend Service
+echo -e "\n🌐 Frontend Health Check:"
+if curl -f -s --max-time 10 http://localhost:80/ >/dev/null 2>&1; then
+    echo "✅ Frontend is responding on port 80"
+else
+    echo "❌ Frontend is not responding"
+fi
+
+echo -e "\n🔧 Network Ports:"
 sudo ss -tlnp | grep -E ':(3001|3002)' || echo "  No services listening on 3001/3002"
 
 echo -e "\\n📋 Recent Container Logs:"
@@ -681,6 +715,9 @@ sudo docker logs --tail 5 mern-hello-service 2>/dev/null || echo "  No logs avai
 
 echo -e "\\nProfile Service (last 5 lines):"
 sudo docker logs --tail 5 mern-profile-service 2>/dev/null || echo "  No logs available"
+
+echo -e "\\nFrontend Service (last 5 lines):"
+sudo docker logs --tail 5 mern-frontend-service 2>/dev/null || echo "  No logs available"
 
 echo -e "\\n=============================================="
 echo "Health check completed at $(date)"
@@ -747,6 +784,7 @@ case "$1" in
         sudo /usr/local/bin/docker-compose down
         sudo docker pull 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:hs-radeon
         sudo docker pull 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:ps-radeon
+        sudo docker pull 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:fe-radeon
         sudo /usr/local/bin/docker-compose up -d
         echo "✅ Update completed"
         ;;
@@ -777,11 +815,11 @@ echo -e "\\n=== Quick Health Check ==="
 sleep 10
 curl -s --max-time 5 http://localhost:3001/health && echo " (Hello service OK)" || echo " (Hello service not responding)"
 curl -s --max-time 5 http://localhost:3002/health && echo " (Profile service OK)" || echo " (Profile service not responding)"
+curl -s --max-time 5 http://localhost:3000/ && echo " (Frontend service OK)" || echo " (Frontend service not responding)"
 
 # Log success
 echo "🎉 Ubuntu MERN Backend deployment completed successfully!" | sudo tee /var/log/user-data-success.log
 echo "Deployment completed at: $(date)"
-echo "Instance ready for production traffic!"
 """
         
         # Encode user data
@@ -858,34 +896,6 @@ echo "Instance ready for production traffic!"
         
         # Check if ALB already exists
         try:
-            response = self.elbv2.describe_load_balancers(Names=[alb_name])
-            if response['LoadBalancers']:
-                existing_alb = response['LoadBalancers'][0]
-                alb_arn = existing_alb['LoadBalancerArn']
-                alb_dns = existing_alb['DNSName']
-                print(f"✅ ALB already exists: {alb_arn}")
-                print(f"🌐 ALB DNS: {alb_dns}")
-                
-                # Get existing target groups
-                target_groups = {}
-                try:
-                    tg_response = self.elbv2.describe_target_groups()
-                    for tg in tg_response['TargetGroups']:
-                        if 'MERN-Ubuntu-Hello-TG' in tg['TargetGroupName']:
-                            target_groups['hello'] = tg['TargetGroupArn']
-                        elif 'MERN-Ubuntu-Profile-TG' in tg['TargetGroupName']:
-                            target_groups['profile'] = tg['TargetGroupArn']
-                    print(f"✅ Found existing target groups: {list(target_groups.keys())}")
-                except ClientError as e:
-                    print(f"⚠️  Could not retrieve target groups: {e}")
-                
-                return alb_arn, alb_dns, target_groups
-        except ClientError as e:
-            if e.response['Error']['Code'] != 'LoadBalancerNotFound':
-                print(f"⚠️  Error checking existing ALB: {e}")
-        
-        try:
-            # Create ALB
             response = self.elbv2.create_load_balancer(
                 Name=alb_name,
                 Subnets=subnet_ids,
@@ -939,7 +949,7 @@ echo "Instance ready for production traffic!"
                     print(f"✅ Using existing Hello target group")
                 else:
                     raise e
-            
+
             # Profile Service Target Group
             try:
                 profile_tg_response = self.elbv2.create_target_group(
@@ -963,15 +973,42 @@ echo "Instance ready for production traffic!"
                 target_groups['profile'] = profile_tg_response['TargetGroups'][0]['TargetGroupArn']
             except ClientError as e:
                 if 'already exists' in str(e):
-                    # Get existing target group
                     tg_response = self.elbv2.describe_target_groups(Names=['MERN-Ubuntu-Profile-TG'])
                     target_groups['profile'] = tg_response['TargetGroups'][0]['TargetGroupArn']
                     print(f"✅ Using existing Profile target group")
                 else:
                     raise e
-            
+
+            # Frontend Service Target Group
+            try:
+                frontend_tg_response = self.elbv2.create_target_group(
+                    Name='MERN-Ubuntu-Frontend-TG',
+                    Protocol='HTTP',
+                    Port=80,
+                    VpcId=vpc_id,
+                    HealthCheckEnabled=True,
+                    HealthCheckIntervalSeconds=30,
+                    HealthCheckPath='/',  # Frontend health check path
+                    HealthCheckProtocol='HTTP',
+                    HealthCheckTimeoutSeconds=5,
+                    HealthyThresholdCount=2,
+                    UnhealthyThresholdCount=3,
+                    Tags=[
+                        {'Key': 'Name', 'Value': 'MERN-Ubuntu-Frontend-TG'},
+                        {'Key': 'Service', 'Value': 'frontend'},
+                        {'Key': 'OS', 'Value': 'Ubuntu'}
+                    ]
+                )
+                target_groups['frontend'] = frontend_tg_response['TargetGroups'][0]['TargetGroupArn']
+            except ClientError as e:
+                if 'already exists' in str(e):
+                    tg_response = self.elbv2.describe_target_groups(Names=['MERN-Ubuntu-Frontend-TG'])
+                    target_groups['frontend'] = tg_response['TargetGroups'][0]['TargetGroupArn']
+                    print(f"✅ Using existing Frontend target group")
+                else:
+                    raise e
+
             # Create listeners
-            # Default listener (Hello Service)
             try:
                 self.elbv2.create_listener(
                     LoadBalancerArn=alb_arn,
@@ -980,7 +1017,7 @@ echo "Instance ready for production traffic!"
                     DefaultActions=[
                         {
                             'Type': 'forward',
-                            'TargetGroupArn': target_groups['hello']
+                            'TargetGroupArn': target_groups['frontend']  # Default to frontend
                         }
                     ]
                 )
@@ -989,40 +1026,68 @@ echo "Instance ready for production traffic!"
                     raise e
                 print(f"✅ Listener already exists")
             
-            # Listener rule for Profile Service
+            # Listener rules
             try:
                 listener_response = self.elbv2.describe_listeners(LoadBalancerArn=alb_arn)
                 listener_arn = listener_response['Listeners'][0]['ListenerArn']
                 
-                self.elbv2.create_rule(
-                    ListenerArn=listener_arn,
-                    Priority=100,
-                    Conditions=[
-                        {
-                            'Field': 'path-pattern',
-                            'Values': ['/api/profile*']
-                        }
-                    ],
-                    Actions=[
-                        {
-                            'Type': 'forward',
-                            'TargetGroupArn': target_groups['profile']
-                        }
-                    ]
-                )
+                # Hello Service rule
+                try:
+                    self.elbv2.create_rule(
+                        ListenerArn=listener_arn,
+                        Priority=100,
+                        Conditions=[
+                            {
+                                'Field': 'path-pattern',
+                                'Values': ['/api/hello*']
+                            }
+                        ],
+                        Actions=[
+                            {
+                                'Type': 'forward',
+                                'TargetGroupArn': target_groups['hello']
+                            }
+                        ]
+                    )
+                except ClientError as e:
+                    if 'already exists' not in str(e) and 'Priority is already in use' not in str(e):
+                        raise e
+                    print(f"✅ Hello service listener rule exists")
+
+                # Profile Service rule
+                try:
+                    self.elbv2.create_rule(
+                        ListenerArn=listener_arn,
+                        Priority=200,
+                        Conditions=[
+                            {
+                                'Field': 'path-pattern',
+                                'Values': ['/api/profile*']
+                            }
+                        ],
+                        Actions=[
+                            {
+                                'Type': 'forward',
+                                'TargetGroupArn': target_groups['profile']
+                            }
+                        ]
+                    )
+                except ClientError as e:
+                    if 'already exists' not in str(e) and 'Priority is already in use' not in str(e):
+                        raise e
+                    print(f"✅ Profile service listener rule exists")
+
             except ClientError as e:
-                if 'already exists' not in str(e) and 'Priority is already in use' not in str(e):
-                    raise e
-                print(f"✅ Listener rule already exists")
-            
+                print(f"❌ Error creating listener rules: {e}")
+                return None, None, None
+
             print(f"✅ Target groups created: {list(target_groups.keys())}")
-            
             return alb_arn, alb_dns, target_groups
-            
+
         except ClientError as e:
             print(f"❌ Error creating ALB: {e}")
             return None, None, None
-    
+
     def create_auto_scaling_group(self, template_id, subnet_ids, target_group_arns):
         """Create Ubuntu-optimized Auto Scaling Group"""
         asg_name = 'MERN-Ubuntu-Backend-ASG'
@@ -1045,23 +1110,6 @@ echo "Instance ready for production traffic!"
                         }
                     )
                     print(f"✅ ASG updated with new launch template: {template_id}")
-                    
-                    # Start instance refresh to replace old instances
-                    self.autoscaling.start_instance_refresh(
-                        AutoScalingGroupName=asg_name,
-                        Strategy='Rolling',
-                        DesiredConfiguration={
-                            'LaunchTemplate': {
-                                'LaunchTemplateId': template_id,
-                                'Version': '$Latest'
-                            }
-                        },
-                        Preferences={
-                            'InstanceWarmup': 300,
-                            'MinHealthyPercentage': 50
-                        }
-                    )
-                    print(f"✅ Instance refresh started for ASG: {asg_name}")
                     return True
                 except ClientError as e:
                     print(f"⚠️  Could not update ASG: {e}")
@@ -1090,23 +1138,17 @@ echo "Instance ready for production traffic!"
                     {
                         'Key': 'Name',
                         'Value': asg_name,
-                        'PropagateAtLaunch': True,
-                        'ResourceId': asg_name,
-                        'ResourceType': 'auto-scaling-group'
+                        'PropagateAtLaunch': True
                     },
                     {
                         'Key': 'Project',
                         'Value': 'MERN-Microservices',
-                        'PropagateAtLaunch': True,
-                        'ResourceId': asg_name,
-                        'ResourceType': 'auto-scaling-group'
+                        'PropagateAtLaunch': True
                     },
                     {
                         'Key': 'OS',
                         'Value': 'Ubuntu-20.04',
-                        'PropagateAtLaunch': True,
-                        'ResourceId': asg_name,
-                        'ResourceType': 'auto-scaling-group'
+                        'PropagateAtLaunch': True
                     }
                 ]
             )
@@ -1125,7 +1167,7 @@ echo "Instance ready for production traffic!"
             else:
                 print(f"❌ Error creating ASG: {e}")
                 return False
-    
+
     def _create_scaling_policy(self, asg_name):
         """Create Ubuntu-optimized scaling policy for ASG"""
         try:
@@ -1148,7 +1190,7 @@ echo "Instance ready for production traffic!"
                 print(f"⚠️  Could not create scaling policy: {e}")
             else:
                 print(f"✅ Scaling policy already exists")
-    
+
     def deploy_ubuntu_backend_infrastructure(self, infrastructure_info):
         """Deploy complete Ubuntu backend infrastructure"""
         print("🚀 Deploying Ubuntu-optimized MERN backend infrastructure with ASG...")
@@ -1250,8 +1292,9 @@ def main():
             print("   4. Monitor CloudWatch metrics")
             print("\n🔗 Service Endpoints:")
             alb_dns = infrastructure_info.get('alb_dns', '<ALB-DNS-FROM-OUTPUT>')
-            print(f"   Hello Service: http://{alb_dns}/")
-            print(f"   Profile Service: http://{alb_dns}/api/profile")
+            print(f"   Frontend: http://{alb_dns}/")
+            print(f"   Hello API: http://{alb_dns}/api/hello")
+            print(f"   Profile API: http://{alb_dns}/api/profile")
             print("\n🔧 Debugging Commands (SSH as ubuntu user):")
             print("   ./health-check.sh           - Complete health check")
             print("   ./manage-services.sh status  - Service status")
