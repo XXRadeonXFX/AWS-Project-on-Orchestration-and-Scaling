@@ -1,23 +1,21 @@
 {
-  "vpc_id": "vpc-0106277e99478c644",
+  "vpc_id": "vpc-0056d809452f9f8ea",
   "public_subnets": [
-    "subnet-01b6c5b54495c7399",
-    "subnet-02bba956cb9651d3c"
+    "subnet-066ec2d046612e19b",
+    "subnet-0a08b704a1b1af340",
+    "subnet-0c1842aca7dc1b6b0"
   ],
-  "private_subnets": [
-    "subnet-08492bf3d505116fd",
-    "subnet-016a7e7d605cf750c"
-  ],
-  "internet_gateway_id": "igw-006973251187a953e",
-  "nat_gateway_id": "nat-0b07290442e4dab3c",
+  "private_subnets": [],
+  "internet_gateway_id": "igw-089cbd09167b09907",
+  "nat_gateway_id": "",
   "region": "ap-south-1",
   "security_groups": {
-    "MERN-ALB-SG": "sg-084ac2a8d4058e39f",
-    "MERN-Frontend-SG": "sg-069f0397d2b62f74e",
-    "MERN-Backend-SG": "sg-09a2891291ff0e566"
+    "MERN-ALB-SG": "sg-03105a8fd1de28032",
+    "MERN-Frontend-SG": "sg-03105a8fd1de28032",
+    "MERN-Backend-SG": "sg-03105a8fd1de28032"
   },
   "route_tables": {
-    "public": "rtb-0a46932db8c214baa",
-    "private": "rtb-0478bc0cae304fd39"
+    "public": "rtb-0baae1f6d77090fbd",
+    "private": ""
   }
 }
