@@ -17,6 +17,267 @@ class UbuntuASGDeployment:
         self.autoscaling = boto3.client('autoscaling', region_name=region)
         self.elbv2 = boto3.client('elbv2', region_name=region)
         self.iam = boto3.client('iam', region_name=region)
+    
+    def prompt_vpc_choice(self):
+        """Prompt user to choose between creating new VPC or using existing one"""
+        print("\n" + "="*60)
+        print("🌐 VPC Infrastructure Choice")
+        print("="*60)
+        print("Choose how you want to handle VPC infrastructure:")
+        print("1. 🆕 Create NEW VPC infrastructure (recommended for fresh setup)")
+        print("2. 🔄 Use EXISTING VPC infrastructure (from previous deployment)")
+        print("3. 🔍 List available VPCs and select one")
+        print("="*60)
+        
+        while True:
+            choice = input("Enter your choice (1, 2, or 3): ").strip()
+            
+            if choice == "1":
+                return self.create_new_vpc_infrastructure()
+            elif choice == "2":
+                return self.use_existing_vpc_from_file()
+            elif choice == "3":
+                return self.select_from_available_vpcs()
+            else:
+                print("❌ Invalid choice. Please enter 1, 2, or 3.")
+    
+    def create_new_vpc_infrastructure(self):
+        """Create new VPC infrastructure"""
+        print("\n🚀 Creating NEW VPC infrastructure...")
+        
+        try:
+            # Import and run VPC creation
+            from vpc_infrastructure_fixed import VPCInfrastructure
+            
+            vpc_infra = VPCInfrastructure(region=self.region)
+            success = vpc_infra.deploy_infrastructure()
+            
+            if success:
+                # Get the infrastructure info
+                infrastructure_info = {
+                    **vpc_infra.get_infrastructure_info(),
+                    'security_groups': {
+                        'MERN-ALB-SG': vpc_infra.security_groups['MERN-ALB-SG'],
+                        'MERN-Backend-SG': vpc_infra.security_groups['MERN-Backend-SG'],
+                        'MERN-Frontend-SG': vpc_infra.security_groups['MERN-Frontend-SG']
+                    }
+                }
+                print("✅ New VPC infrastructure created successfully!")
+                return infrastructure_info
+            else:
+                print("❌ Failed to create VPC infrastructure")
+                return None
+                
+        except ImportError:
+            print("❌ VPC infrastructure script not found!")
+            print("   Please ensure 'vpc_infrastructure_fixed.py' is in the same directory")
+            return None
+        except Exception as e:
+            print(f"❌ Error creating VPC infrastructure: {e}")
+            return None
+    
+    def use_existing_vpc_from_file(self):
+        """Use existing VPC infrastructure from deployment file"""
+        print("\n🔄 Looking for existing VPC deployment files...")
+        
+        # Check for different possible deployment files
+        possible_files = [
+            'States/VPC-Deploy-Info.json',
+            'States/VPC-Deploy-Info.json'
+        ]
+        
+        for file_path in possible_files:
+            if os.path.exists(file_path):
+                print(f"✅ Found deployment file: {file_path}")
+                try:
+                    with open(file_path, 'r') as f:
+                        infrastructure_info = json.load(f)
+                    
+                    # Validate the infrastructure info
+                    required_keys = ['vpc_id', 'public_subnets', 'security_groups']
+                    if all(key in infrastructure_info for key in required_keys):
+                        print(f"📋 VPC Infrastructure Summary:")
+                        print(f"   VPC ID: {infrastructure_info.get('vpc_id')}")
+                        print(f"   Public Subnets: {len(infrastructure_info.get('public_subnets', []))}")
+                        print(f"   Security Groups: {len(infrastructure_info.get('security_groups', {}))}")
+                        return infrastructure_info
+                    else:
+                        print(f"⚠️  Invalid deployment file format: {file_path}")
+                        
+                except (json.JSONDecodeError, Exception) as e:
+                    print(f"❌ Error reading {file_path}: {e}")
+        
+        print("❌ No valid VPC deployment files found!")
+        print("   Available options:")
+        print("   1. Create new VPC infrastructure first")
+        print("   2. Check the States/ directory for deployment files")
+        return None
+    
+    def select_from_available_vpcs(self):
+        """List and select from available VPCs"""
+        print("\n🔍 Discovering available VPCs...")
+        
+        try:
+            # Get all VPCs
+            vpcs_response = self.ec2.describe_vpcs()
+            vpcs = vpcs_response['Vpcs']
+            
+            if not vpcs:
+                print("❌ No VPCs found in this region")
+                return None
+            
+            # Filter and display VPCs
+            print(f"\n📋 Available VPCs in {self.region}:")
+            print("-" * 80)
+            print(f"{'#':<3} {'VPC ID':<20} {'CIDR':<16} {'Name':<25} {'State':<12}")
+            print("-" * 80)
+            
+            valid_vpcs = []
+            for i, vpc in enumerate(vpcs, 1):
+                vpc_id = vpc['VpcId']
+                cidr = vpc['CidrBlock']
+                state = vpc['State']
+                
+                # Get VPC name from tags
+                vpc_name = 'No Name'
+                for tag in vpc.get('Tags', []):
+                    if tag['Key'] == 'Name':
+                        vpc_name = tag['Value']
+                        break
+                
+                print(f"{i:<3} {vpc_id:<20} {cidr:<16} {vpc_name:<25} {state:<12}")
+                valid_vpcs.append(vpc)
+            
+            print("-" * 80)
+            
+            # Let user select VPC
+            while True:
+                try:
+                    choice = input(f"\nSelect VPC (1-{len(valid_vpcs)}) or 0 to cancel: ").strip()
+                    choice_num = int(choice)
+                    
+                    if choice_num == 0:
+                        return None
+                    elif 1 <= choice_num <= len(valid_vpcs):
+                        selected_vpc = valid_vpcs[choice_num - 1]
+                        return self.build_infrastructure_info_from_vpc(selected_vpc['VpcId'])
+                    else:
+                        print(f"❌ Invalid choice. Please enter 1-{len(valid_vpcs)} or 0")
+                        
+                except ValueError:
+                    print("❌ Invalid input. Please enter a number.")
+                    
+        except ClientError as e:
+            print(f"❌ Error discovering VPCs: {e}")
+            return None
+    
+    def build_infrastructure_info_from_vpc(self, vpc_id):
+        """Build infrastructure info from existing VPC"""
+        print(f"\n🔨 Building infrastructure info for VPC: {vpc_id}")
+        
+        try:
+            # Get subnets
+            subnets_response = self.ec2.describe_subnets(
+                Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
+            )
+            
+            public_subnets = []
+            private_subnets = []
+            
+            for subnet in subnets_response['Subnets']:
+                subnet_id = subnet['SubnetId']
+                
+                # Check if subnet is public (has route to internet gateway)
+                route_tables = self.ec2.describe_route_tables(
+                    Filters=[{'Name': 'association.subnet-id', 'Values': [subnet_id]}]
+                )
+                
+                is_public = False
+                for rt in route_tables['RouteTables']:
+                    for route in rt['Routes']:
+                        if route.get('GatewayId', '').startswith('igw-'):
+                            is_public = True
+                            break
+                
+                if is_public:
+                    public_subnets.append(subnet_id)
+                else:
+                    private_subnets.append(subnet_id)
+            
+            print(f"   📡 Found {len(public_subnets)} public subnets")
+            print(f"   🔒 Found {len(private_subnets)} private subnets")
+            
+            # Get or create security groups
+            security_groups = self.get_or_create_security_groups(vpc_id)
+            
+            if not security_groups:
+                print("❌ Failed to get/create security groups")
+                return None
+            
+            # Build infrastructure info
+            infrastructure_info = {
+                'vpc_id': vpc_id,
+                'public_subnets': public_subnets,
+                'private_subnets': private_subnets,
+                'security_groups': security_groups,
+                'region': self.region
+            }
+            
+            print("✅ Infrastructure info built successfully!")
+            return infrastructure_info
+            
+        except ClientError as e:
+            print(f"❌ Error building infrastructure info: {e}")
+            return None
+    
+    def get_or_create_security_groups(self, vpc_id):
+        """Get existing security groups or create new ones"""
+        print("🔐 Checking security groups...")
+        
+        required_sgs = ['MERN-ALB-SG', 'MERN-Backend-SG', 'MERN-Frontend-SG']
+        security_groups = {}
+        
+        try:
+            # Check for existing security groups
+            existing_sgs = self.ec2.describe_security_groups(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [vpc_id]},
+                    {'Name': 'group-name', 'Values': required_sgs}
+                ]
+            )
+            
+            for sg in existing_sgs['SecurityGroups']:
+                security_groups[sg['GroupName']] = sg['GroupId']
+                print(f"   ✅ Found existing: {sg['GroupName']} ({sg['GroupId']})")
+            
+            # Create missing security groups
+            missing_sgs = set(required_sgs) - set(security_groups.keys())
+            
+            if missing_sgs:
+                print(f"   🔨 Creating missing security groups: {list(missing_sgs)}")
+                
+                # Import VPC infrastructure to create security groups
+                from vpc_infrastructure_fixed import VPCInfrastructure
+                vpc_infra = VPCInfrastructure(region=self.region)
+                vpc_infra.vpc_id = vpc_id
+                
+                # Create the missing security groups
+                created_sgs = vpc_infra.create_security_groups()
+                if created_sgs:
+                    security_groups.update(created_sgs)
+                    print("   ✅ Missing security groups created")
+                else:
+                    print("   ❌ Failed to create missing security groups")
+                    return None
+            
+            return security_groups
+            
+        except ImportError:
+            print("❌ VPC infrastructure script not found for security group creation!")
+            return None
+        except ClientError as e:
+            print(f"❌ Error handling security groups: {e}")
+            return None
         
     def create_instance_role(self):
         """Create IAM role for Ubuntu EC2 instances"""
@@ -959,30 +1220,38 @@ echo "Instance ready for production traffic!"
 def main():
     """Main function to deploy Ubuntu backend infrastructure"""
     
-    # Load infrastructure info from States folder
-    infrastructure_file = 'States/VPC-Deploy-Info.json'
-    try:
-        with open(infrastructure_file, 'r') as f:
-            infrastructure_info = json.load(f)
-    except FileNotFoundError:
-        print(f"❌ {infrastructure_file} not found!")
-        print("   Please run vpc_infrastructure.py first.")
-        return
+    print("🚀 Ubuntu MERN Backend Infrastructure Deployment")
+    print("=" * 60)
     
     deployment = UbuntuASGDeployment()
     
     try:
+        # Step 1: Get VPC infrastructure info
+        print("\n📋 Step 1: VPC Infrastructure Setup")
+        infrastructure_info = deployment.prompt_vpc_choice()
+        
+        if not infrastructure_info:
+            print("❌ VPC infrastructure setup failed or cancelled")
+            return
+        
+        # Step 2: Deploy backend infrastructure  
+        print(f"\n📋 Step 2: Backend Infrastructure Deployment")
+        print("-" * 40)
         success = deployment.deploy_ubuntu_backend_infrastructure(infrastructure_info)
+        
         if success:
-            print("\n✅ Ubuntu MERN Backend infrastructure deployment completed!")
+            print("\n" + "="*60)
+            print("✅ Ubuntu MERN Backend infrastructure deployment completed!")
+            print("="*60)
             print("\n📊 Next Steps:")
             print("   1. Wait 5-10 minutes for instances to be ready")
-            print("   2. Check ALB target group health")
+            print("   2. Check ALB target group health in AWS Console")
             print("   3. Test backend services via ALB DNS")
             print("   4. Monitor CloudWatch metrics")
             print("\n🔗 Service Endpoints:")
-            print("   Hello Service: http://<ALB-DNS>/")
-            print("   Profile Service: http://<ALB-DNS>/api/profile")
+            alb_dns = infrastructure_info.get('alb_dns', '<ALB-DNS-FROM-OUTPUT>')
+            print(f"   Hello Service: http://{alb_dns}/")
+            print(f"   Profile Service: http://{alb_dns}/api/profile")
             print("\n🔧 Debugging Commands (SSH as ubuntu user):")
             print("   ./health-check.sh           - Complete health check")
             print("   ./manage-services.sh status  - Service status")
@@ -997,8 +1266,12 @@ def main():
         else:
             print("\n❌ Ubuntu backend infrastructure deployment failed!")
             
+    except KeyboardInterrupt:
+        print("\n❌ Deployment cancelled by user")
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"\n❌ Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
