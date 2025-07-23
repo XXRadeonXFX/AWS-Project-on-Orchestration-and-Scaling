@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AWS VPC Infrastructure Setup using Boto3
+AWS VPC Infrastructure Setup using Boto3 - FIXED VERSION
 Creates VPC, subnets, security groups, and networking components
 """
 
@@ -223,34 +223,21 @@ class VPCInfrastructure:
             return None, None
     
     def create_security_groups(self):
-        """Create security groups for different components"""
+        """Create security groups for different components with proper access rules"""
         security_groups = {}
         
         sg_configs = [
             {
                 'name': 'MERN-ALB-SG',
-                'description': 'Security group for Application Load Balancer',
-                'rules': [
-                    {'type': 'ingress', 'protocol': 'tcp', 'port': 80, 'source': '0.0.0.0/0'},
-                    {'type': 'ingress', 'protocol': 'tcp', 'port': 443, 'source': '0.0.0.0/0'}
-                ]
+                'description': 'Security group for Application Load Balancer'
             },
             {
                 'name': 'MERN-Frontend-SG',
-                'description': 'Security group for Frontend instances',
-                'rules': [
-                    {'type': 'ingress', 'protocol': 'tcp', 'port': 3000, 'source': 'alb'},
-                    {'type': 'ingress', 'protocol': 'tcp', 'port': 22, 'source': '0.0.0.0/0'}
-                ]
+                'description': 'Security group for Frontend instances'
             },
             {
                 'name': 'MERN-Backend-SG',
-                'description': 'Security group for Backend instances (Cloud MongoDB)',
-                'rules': [
-                    {'type': 'ingress', 'protocol': 'tcp', 'port': 3001, 'source': 'frontend'},
-                    {'type': 'ingress', 'protocol': 'tcp', 'port': 3002, 'source': 'frontend'},
-                    {'type': 'ingress', 'protocol': 'tcp', 'port': 22, 'source': '0.0.0.0/0'}
-                ]
+                'description': 'Security group for Backend instances with internet and ALB access'
             }
         ]
         
@@ -286,9 +273,10 @@ class VPCInfrastructure:
             return None
     
     def _add_security_group_rules(self, security_groups):
-        """Add rules to security groups"""
+        """Add FIXED rules to security groups for proper MERN stack access"""
         try:
-            # ALB Security Group Rules
+            # ALB Security Group Rules - Allow HTTP/HTTPS from internet
+            print("Adding ALB security group rules...")
             self.ec2.authorize_security_group_ingress(
                 GroupId=security_groups['MERN-ALB-SG'],
                 IpPermissions=[
@@ -308,6 +296,7 @@ class VPCInfrastructure:
             )
             
             # Frontend Security Group Rules
+            print("Adding Frontend security group rules...")
             self.ec2.authorize_security_group_ingress(
                 GroupId=security_groups['MERN-Frontend-SG'],
                 IpPermissions=[
@@ -319,22 +308,9 @@ class VPCInfrastructure:
                     },
                     {
                         'IpProtocol': 'tcp',
-                        'FromPort': 22,
-                        'ToPort': 22,
-                        'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'SSH access'}]
-                    }
-                ]
-            )
-            
-            # Backend Security Group Rules (optimized for Cloud MongoDB)
-            self.ec2.authorize_security_group_ingress(
-                GroupId=security_groups['MERN-Backend-SG'],
-                IpPermissions=[
-                    {
-                        'IpProtocol': 'tcp',
-                        'FromPort': 3001,
-                        'ToPort': 3002,
-                        'UserIdGroupPairs': [{'GroupId': security_groups['MERN-Frontend-SG'], 'Description': 'API access from frontend'}]
+                        'FromPort': 3000,
+                        'ToPort': 3000,
+                        'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'React app from internet (dev/testing)'}]
                     },
                     {
                         'IpProtocol': 'tcp',
@@ -345,7 +321,58 @@ class VPCInfrastructure:
                 ]
             )
             
+            # FIXED Backend Security Group Rules - Allow multiple sources
+            print("Adding FIXED Backend security group rules...")
+            self.ec2.authorize_security_group_ingress(
+                GroupId=security_groups['MERN-Backend-SG'],
+                IpPermissions=[
+                    # Allow ALB to access backend services
+                    {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 3001,
+                        'ToPort': 3002,
+                        'UserIdGroupPairs': [{'GroupId': security_groups['MERN-ALB-SG'], 'Description': 'API access from ALB'}]
+                    },
+                    # Allow frontend to access backend services
+                    {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 3001,
+                        'ToPort': 3002,
+                        'UserIdGroupPairs': [{'GroupId': security_groups['MERN-Frontend-SG'], 'Description': 'API access from frontend'}]
+                    },
+                    # Allow internet access to backend services (for testing and direct access)
+                    {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 3001,
+                        'ToPort': 3002,
+                        'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'API access from internet (testing/direct)'}]
+                    },
+                    # SSH access
+                    {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 22,
+                        'ToPort': 22,
+                        'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'SSH access'}]
+                    }
+                ]
+            )
+            
             # Backend outbound rules for Cloud MongoDB and external APIs
+            print("Adding Backend outbound rules...")
+            
+            # First, remove default outbound rule (all traffic)
+            try:
+                default_rules = self.ec2.describe_security_groups(GroupIds=[security_groups['MERN-Backend-SG']])
+                for rule in default_rules['SecurityGroups'][0]['IpPermissionsEgress']:
+                    if rule.get('IpRanges') and rule['IpRanges'][0]['CidrIp'] == '0.0.0.0/0':
+                        self.ec2.revoke_security_group_egress(
+                            GroupId=security_groups['MERN-Backend-SG'],
+                            IpPermissions=[rule]
+                        )
+            except ClientError:
+                pass  # Continue if default rule doesn't exist
+            
+            # Add specific outbound rules
             self.ec2.authorize_security_group_egress(
                 GroupId=security_groups['MERN-Backend-SG'],
                 IpPermissions=[
@@ -366,14 +393,34 @@ class VPCInfrastructure:
                         'FromPort': 27017,
                         'ToPort': 27017,
                         'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'MongoDB Atlas/Cloud access'}]
+                    },
+                    {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 53,
+                        'ToPort': 53,
+                        'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'DNS TCP'}]
+                    },
+                    {
+                        'IpProtocol': 'udp',
+                        'FromPort': 53,
+                        'ToPort': 53,
+                        'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'DNS UDP'}]
                     }
                 ]
             )
             
-            print("✅ Security group rules added successfully")
+            print("✅ FIXED security group rules added successfully!")
+            print("   🔹 ALB can access backend services")
+            print("   🔹 Frontend can access backend services") 
+            print("   🔹 Internet can access backend services (for testing)")
+            print("   🔹 Backend can access MongoDB Atlas and external APIs")
             
         except ClientError as e:
-            print(f"❌ Error adding security group rules: {e}")
+            if 'already exists' in str(e).lower():
+                print("⚠️  Some security group rules already exist - continuing...")
+            else:
+                print(f"❌ Error adding security group rules: {e}")
+                raise
     
     def get_infrastructure_info(self):
         """Return infrastructure information"""
@@ -388,7 +435,7 @@ class VPCInfrastructure:
     
     def deploy_infrastructure(self):
         """Deploy complete VPC infrastructure"""
-        print("🚀 Starting VPC infrastructure deployment...")
+        print("🚀 Starting FIXED VPC infrastructure deployment...")
         
         # Create VPC
         if not self.create_vpc():
@@ -413,11 +460,15 @@ class VPCInfrastructure:
         if not security_groups:
             return False
         
-        print("\n🎉 VPC Infrastructure deployment completed successfully!")
+        print("\n🎉 FIXED VPC Infrastructure deployment completed successfully!")
         print(f"📋 Infrastructure Info:")
         info = self.get_infrastructure_info()
         for key, value in info.items():
             print(f"   {key}: {value}")
+        
+        print(f"\n🔐 Security Groups:")
+        for sg_name, sg_id in security_groups.items():
+            print(f"   {sg_name}: {sg_id}")
         
         # Save infrastructure info to States folder
         import os
@@ -438,18 +489,31 @@ class VPCInfrastructure:
         with open(output_file, 'w') as f:
             json.dump(output_data, f, indent=2)
         
-        print(f"💾 Infrastructure info saved to '{output_file}'")
+        print(f"💾 FIXED Infrastructure info saved to '{output_file}'")
+        
+        print(f"\n✨ Key Improvements in FIXED version:")
+        print(f"   🔹 Backend SG allows ALB access (ports 3001-3002)")
+        print(f"   🔹 Backend SG allows internet access (for testing)")
+        print(f"   🔹 Backend SG allows frontend access")
+        print(f"   🔹 Proper outbound rules for MongoDB Atlas")
+        print(f"   🔹 DNS resolution support")
+        
         return True
 
 
 def main():
-    """Main function to deploy VPC infrastructure"""
+    """Main function to deploy FIXED VPC infrastructure"""
     infrastructure = VPCInfrastructure()
     
     try:
         success = infrastructure.deploy_infrastructure()
         if success:
-            print("\n✅ All infrastructure components deployed successfully!")
+            print("\n✅ All FIXED infrastructure components deployed successfully!")
+            print("\n🧪 Ready for:")
+            print("   - Direct backend testing (ports 3001-3002)")
+            print("   - ALB-based load balancing")
+            print("   - Frontend-to-backend communication")
+            print("   - MongoDB Atlas connectivity")
         else:
             print("\n❌ Infrastructure deployment failed!")
             

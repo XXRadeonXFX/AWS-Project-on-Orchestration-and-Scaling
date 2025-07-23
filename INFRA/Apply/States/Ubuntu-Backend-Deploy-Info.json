@@ -1,0 +1,12 @@
+{
+  "template_id": "lt-05ecb64a4edb6573d",
+  "alb_arn": "arn:aws:elasticloadbalancing:ap-south-1:975050024946:loadbalancer/app/MERN-Ubuntu-Backend-ALB/0c7dfd26d3bab75d",
+  "alb_dns": "MERN-Ubuntu-Backend-ALB-548695588.ap-south-1.elb.amazonaws.com",
+  "target_groups": {
+    "hello": "arn:aws:elasticloadbalancing:ap-south-1:975050024946:targetgroup/MERN-Ubuntu-Hello-TG/d06a6aee105d1e87",
+    "profile": "arn:aws:elasticloadbalancing:ap-south-1:975050024946:targetgroup/MERN-Ubuntu-Profile-TG/0bd332ef24ea3123"
+  },
+  "asg_name": "MERN-Ubuntu-Backend-ASG",
+  "os": "Ubuntu-20.04",
+  "instance_type": "t3.medium"
+}

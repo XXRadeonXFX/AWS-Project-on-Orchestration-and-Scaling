@@ -425,7 +425,7 @@ def main():
     parser = argparse.ArgumentParser(description='Destroy AWS VPC Infrastructure')
     parser.add_argument('--vpc-id', help='VPC ID to destroy')
     parser.add_argument('--region', default='ap-south-1', help='AWS region')
-    parser.add_argument('--infrastructure-file', default='States/VPC-Deploy-Info.json', 
+    parser.add_argument('--infrastructure-file', default='../Apply/States/VPC-Deploy-Info.json', 
                        help='Infrastructure info JSON file')
     parser.add_argument('--force', action='store_true', 
                        help='Skip confirmation prompt')
