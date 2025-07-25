@@ -29,7 +29,7 @@ pipeline {
         HELM_RELEASE_NAME = 'mern-app'
         NAMESPACE = 'default'
         EKS_CLUSTER_NAME = 'prince-ec2'
-        MONGO_CONNECTION_STRING = 'mongodb+srv://radeonxfx:1029384756!Sound@cluster0.gdl7f.mongodb.net/SimpleMern'
+        MONGO_CONNECTION_STRING = 'mongodb+srv://radeonxfx:Password@cluster0.gdl7f.mongodb.net/SimpleMern'
     }
     
     stages {
