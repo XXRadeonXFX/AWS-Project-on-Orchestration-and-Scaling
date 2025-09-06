@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: profile-service
-        image: 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:ps-radeon
+        image: us-central1-docker.pkg.dev/heroviredacademics/my-repo/profile-service:latest
         ports:
         - containerPort: 3002
         env:
@@ -24,7 +24,4 @@ spec:
           value: "production"
         # MongoDB URL will be set at runtime
         - name: MONGO_URL
-          valueFrom:
-            configMapKeyRef:
-              name: app-config
-              key: MONGO_URL
+          value: ""  # This will be overridden at runtime
