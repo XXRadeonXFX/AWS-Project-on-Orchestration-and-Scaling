@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: profile-service
-        image: us-central1-docker.pkg.dev/heroviredacademics/my-repo/profile-service:latest
+        image: 975050024946.dkr.ecr.ap-south-1.amazonaws.com/prince-reg:ps-radeon
         ports:
         - containerPort: 3002
         env:
