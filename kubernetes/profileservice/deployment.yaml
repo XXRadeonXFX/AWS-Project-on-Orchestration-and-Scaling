@@ -24,4 +24,7 @@ spec:
           value: "production"
         # MongoDB URL will be set at runtime
         - name: MONGO_URL
-          value: ""  # This will be overridden at runtime
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: MONGO_URL
